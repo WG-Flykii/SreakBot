@@ -7,8 +7,8 @@ Feel free to use it on your own server!
 Test your geography knowledge with country streak challenges based on real Street View locations!  
 Compete solo or with friends, track your best streaks, and climb the leaderboard.
 
-<img src="https://i.imgur.com/qHgqjAO.png" width="10%">
-<img src="https://i.imgur.com/UDiI5bt.png" width="50%">
+<img src="https://i.imgur.com/qHgqjAO.png" width="30%">
+<img src="https://i.imgur.com/UDiI5bt.png" width="30%">
 ---
 
 ## 🕹️ **Available Commands**
