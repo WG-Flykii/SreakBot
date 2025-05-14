@@ -1519,6 +1519,471 @@ async function takeScreenshot(url) {
       .toBuffer();
       
     return optimizedBuffer;
+  } catch (error) {const availableMapNames = [
+  "A Balanced World",
+  "An Arbitrary World",
+  "A Pro World",
+  "An Arbitrary Rural World"
+];
+
+
+const maps = {};
+availableMapNames.forEach(name => {
+  maps[name] = name.toLowerCase().replace(/\s+/g, '-');
+});
+const mapAliases = {
+  abw: "A Balanced World",
+  "a balanced world": "A Balanced World",
+
+  aaw: "An Arbitrary World",
+  "an arbitrary world": "An Arbitrary World",
+
+  apw: "A Pro World",
+  "a pro world": "A Pro World",
+
+  aarw: "An Arbitrary Rural World",
+  "an arbitrary rural world": "An Arbitrary Rural World",
+
+};
+async function initializeResources() {
+  console.log("Initialisation des ressources en cours...");
+  
+  try {
+    await getBrowser();
+    console.log("navigateur initialisé");
+    
+    if (typeof preloadLocationCache === 'function') {
+      await preloadLocationCache();
+      console.log("Cache d'emplacements préchargée");
+    } else {
+      console.log("La fonction preloadLocationCache n'est pas disponible, ignoré");
+    }
+    
+    console.log("Resources initialized and ready for fast quiz generation");
+    return true;
+  } catch (error) {
+    console.error("Erreur lors de l'initialisation des ressources:", error);
+    return false;
+  }
+}
+
+function resolveMapName(input) {
+  if (!input) return null;
+  return mapAliases[input.toLowerCase()] || null;
+}
+
+let browserPool = null;
+let isInitializingBrowser = false;
+const MAX_BROWSER_AGE = 10 * 60 * 1000; // 30 mins
+let browserStartTime = null;
+let browserPage = null;
+const locationCache = {};
+if (typeof quizzesByChannel === 'undefined') var quizzesByChannel = {};
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ],
+  partials: [Partials.Channel]
+});
+
+const COUNTRIES = {};
+
+Object.keys(COUNTRIES_DATA).forEach(country => {
+    COUNTRIES[country] = COUNTRIES_DATA[country];
+});
+
+const COUNTRY_LOOKUP = {};
+Object.keys(COUNTRIES).forEach(country => {
+  COUNTRY_LOOKUP[country.toLowerCase()] = country;
+  COUNTRIES[country].aliases.forEach(alias => {
+    COUNTRY_LOOKUP[alias.toLowerCase()] = country;
+  });
+});
+
+
+
+function loadJsonFile(filePath, defaultValue = {}) {
+  try {
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, 'utf8');
+      return JSON.parse(data);
+    }
+    return defaultValue;
+  } catch (error) {
+    console.error(`Error loading file ${filePath}:`, error);
+    return defaultValue;
+  }
+}
+
+function saveJsonFile(filePath, data) {
+  try {
+    const dirPath = path.dirname(filePath);
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
+    }
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+  } catch (error) {
+    console.error(`Error saving to ${filePath}:`, error);
+  }
+}
+
+let personalBestStreaks = loadJsonFile(PB_STREAK_PATH, {});
+let leaderboardStreaks = loadJsonFile(LB_STREAK_PATH, {});
+
+async function initializeBrowser() {
+  try {
+    const browser = await puppeteer.launch({
+      headless: 'new',
+      args: [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--disable-gpu',
+        '--disable-extensions',
+        '--disable-background-networking',
+        '--disable-default-apps',
+        '--disable-sync',
+        '--disable-translate',
+        '--hide-scrollbars',
+        '--metrics-recording-only',
+        '--mute-audio',
+        '--safebrowsing-disable-auto-update'
+      ]
+    });
+    browserPool = browser;
+    browserStartTime = Date.now();
+    console.log('Browser initialized successfully');
+    
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
+    return page;
+  } catch (error) {
+    console.error(`Error initializing browser: ${error.message}`);
+    browserPool = null;
+  }
+}
+
+async function getBrowser() {
+  if (isInitializingBrowser) {
+    while (isInitializingBrowser) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return browserPool;
+  }
+
+  const expired = !browserPool || (Date.now() - browserStartTime > MAX_BROWSER_AGE);
+  if (expired) {
+    isInitializingBrowser = true;
+
+    if (browserPool) {
+      try {
+        await browserPool.close();
+        browserPage = null;
+      } catch (err) {
+        console.error("Error closing old browser:", err);
+      }
+    }
+
+    try {
+      browserPool = await puppeteer.launch({
+        headless: 'new',
+        args: [
+          '--no-sandbox', 
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu',
+          '--disable-extensions'
+        ]
+      });
+      browserStartTime = Date.now();
+      console.log("Browser launched.");
+      
+      browserPage = await browserPool.newPage();
+      await browserPage.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
+      
+    } catch (err) {
+      console.error("Failed to launch browser:", err);
+      browserPool = null;
+    }
+
+    isInitializingBrowser = false;
+  }
+
+  return browserPool;
+}
+
+
+
+function normalizeCountry(countryName) {
+  const lookupKey = countryName.toLowerCase();
+  if (COUNTRY_LOOKUP[lookupKey]) {
+    return COUNTRY_LOOKUP[lookupKey];
+  }
+  
+  for (const key of Object.keys(COUNTRY_LOOKUP)) {
+    if (lookupKey.includes(key) || key.includes(lookupKey)) {
+      return COUNTRY_LOOKUP[key];
+    }
+  }
+  
+  return null;
+}
+
+async function getCountryFromCoordinates(lat, lng) {
+  const cacheKey = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+
+  if (locationCache[cacheKey]) {
+    return locationCache[cacheKey];
+  }
+
+  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=5&addressdetails=1`;
+
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'GeoBot/1.0',
+        'Accept-Language': 'en'
+      }
+    });
+
+    const address = response.data?.address;
+    let country = address?.country;
+    let subdivision =
+      address?.state ||
+      address?.province ||
+      address?.region ||
+      address?.territory ||
+      address?.state_district ||
+      address?.county ||
+      address?.municipality ||
+      address?.locality ||
+      address?.city ||
+      address?.town ||
+      address?.suburb ||
+      address?.village ||
+      'Unknown subdivision';
+
+
+    if (country === 'United Kingdom') {
+      if (subdivision.toLowerCase().includes('england')) country = 'england';
+      else if (subdivision.toLowerCase().includes('scotland')) country = 'scotland';
+      else if (subdivision.toLowerCase().includes('wales')) country = 'wales';
+      else if (subdivision.toLowerCase().includes('northern ireland')) country = 'northern ireland';
+    }
+
+    if (country === 'United States') {
+      if (subdivision.toLowerCase().includes('us virgin islands')) country = 'us virgin islands';
+      else if (subdivision.toLowerCase().includes('puerto rico')) country = 'puerto rico';
+      else if (subdivision.toLowerCase().includes('guam')) country = 'guam';
+      else if (subdivision.toLowerCase().includes('american samoa')) country = 'american samoa';
+      else if (subdivision.toLowerCase().includes('northern mariana islands')) country = 'northern mariana islands';
+    }
+
+    const result = {
+      country: country?.toLowerCase() || 'unknown location',
+      subdivision: subdivision || 'Unknown subdivision'
+    };
+
+    locationCache[cacheKey] = result;
+    return result;
+  } catch (error) {
+    console.error('Error with Nominatim API:', error);
+    return { country: 'error', subdivision: 'unknown' };
+  }
+}
+
+
+
+function getWorldGuessrEmbedUrl(location) {
+  if (!location) return null;
+
+  const baseUrl = 'https://www.worldguessr.com/svEmbed';
+  const params = new URLSearchParams({
+    nm: 'true',
+    npz: 'false',
+    showRoadLabels: 'false',
+    lat: location.lat,
+    long: location.lng,
+    showAnswer: 'false'
+  });
+
+  if (location.heading !== undefined) params.append('heading', location.heading);
+  if (location.pitch !== undefined) params.append('pitch', location.pitch);
+  if (location.zoom !== undefined) params.append('zoom', location.zoom);
+
+  return `${baseUrl}?${params.toString()}`;
+}
+
+
+async function fetchMapLocations(mapName) {
+  const slug = maps[mapName];
+  if (!slug) throw new Error(`Unknown map name: ${mapName}`);
+
+  const url = `https://api.worldguessr.com/mapLocations/${slug}`;
+
+  if (locationCache[slug]) return locationCache[slug];
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch map: ${mapName}`);
+
+  const data = await res.json();
+  if (!data.ready || !Array.isArray(data.locations)) {
+    throw new Error(`Map "${mapName}" is not ready or contains no locations.`);
+  }
+
+  locationCache[slug] = data.locations;
+  return data.locations;
+}
+
+async function preloadLocationCache() {
+  console.log("Preloading known locations...");
+
+  for (const mapName of availableMapNames) {
+    try {
+      const locations = await fetchMapLocations(mapName);
+      for (const location of locations) {
+        const cacheKey = `${location.lat.toFixed(6)},${location.lng.toFixed(6)}`;
+        
+        if (!locationCache[cacheKey]) {
+          try {
+            const locationInfo = await getCountryFromCoordinates(location.lat, location.lng);
+            if (locationInfo && locationInfo.country) {
+              locationCache[cacheKey] = {
+                country: locationInfo.country,
+                subdivision: locationInfo.subdivision
+              };
+            }
+          } catch (e) {
+            console.error(`Error preloading cache for ${cacheKey}:`, e);
+          }
+        }
+      }
+    } catch (e) {
+      console.error(`Error loading map ${mapName}:`, e);
+    }
+  }
+
+  console.log(`Location cache preloaded with ${Object.keys(locationCache).length} entries`);
+}
+
+
+
+async function takeScreenshot(url) {
+  let page;
+  let newPageCreated = false;
+
+  try {
+    const browser = await getBrowser();
+    
+    if (browserPage && !browserPage.isClosed()) {
+      page = browserPage;
+      await page.evaluate(() => window.stop());
+    } else {
+      page = await browser.newPage();
+      browserPage = page;
+      newPageCreated = true;
+      await page.setViewport({ 
+        width: 1280, 
+        height: 720,
+        deviceScaleFactor: 1
+      });
+    }
+
+    const pageTimeout = setTimeout(() => {
+      console.log("Global timeout exceeded, attempting screenshot anyway");
+    }, 1000);
+    
+    await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
+    
+    await page.evaluateOnNewDocument(() => {
+      window._resourcesLoaded = false;
+      window._canvasReady = false;
+      
+      const originalRequestAnimationFrame = window.requestAnimationFrame;
+      window.requestAnimationFrame = function(callback) {
+        window._canvasReady = true;
+        return originalRequestAnimationFrame(callback);
+      };
+    });
+    
+    console.log(`Navigating to URL: ${url}`);
+    await page.goto(url, { 
+      waitUntil: 'domcontentloaded',
+      timeout: 3000
+    });
+    
+    await page.mouse.move(640, 360);
+    await page.mouse.down();
+    await page.mouse.move(650, 360, { steps: 2 });
+    await page.mouse.up();
+    
+    try {
+      await page.waitForFunction(() => {
+        const canvas = document.querySelector('canvas');
+        return canvas && canvas.offsetWidth > 0;
+      }, { timeout: 3000 });
+    } catch (e) {
+      console.log("No canvas found, attempting to capture anyway");
+    }
+    
+    const startTime = Date.now();
+    let canProceed = false;
+    
+    while (!canProceed && (Date.now() - startTime < 3000)) {
+      canProceed = await page.evaluate(() => {
+        const canvas = document.querySelector('canvas');
+        if (!canvas) return false;
+        
+        try {
+          const ctx = canvas.getContext('2d');
+          const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+          
+          let nonBlackPixels = 0;
+          for (let i = 0; i < data.length; i += 30000) {
+            if (data[i] > 20 || data[i+1] > 20 || data[i+2] > 20) nonBlackPixels++;
+            if (nonBlackPixels > 3) return true;
+          }
+          
+          return false;
+        } catch(e) {
+          return window._canvasReady;
+        }
+      });
+      
+      if (!canProceed) {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, 500)); // could me more if needed
+    
+    clearTimeout(pageTimeout);
+    
+    const screenshotBuffer = await page.screenshot({
+      fullPage: false,
+      clip: {
+        x: 0,
+        y: -3,
+        width: 1280,
+        height: 720
+      }
+    });
+    
+    const optimizedBuffer = await sharp(screenshotBuffer)
+      .resize(1280, 715)
+      .jpeg({ quality: 65 })
+      .toBuffer();
+      
+    return optimizedBuffer;
   } catch (error) {
     console.error(`Error taking screenshot: ${error.message}`);
     throw error;
@@ -1648,18 +2113,17 @@ async function startQuiz(channel, mapName = null, userId = null) {
 }
 
 async function handleGuess(message, guess) {
+  if (!guess.toLowerCase().startsWith('!g ')) return;
+
   const channelId = message.channel.id;
   const quiz = quizzesByChannel[channelId];
+  if (!quiz || quiz.solved) return;
+
   const subdivision = quiz.subdivision || 'Unknown subdivision';
+
   if (!quiz.participants.some(p => p.id === message.author.id)) {
     quiz.participants.push({ id: message.author.id, username: message.author.username });
   }
-
-  if (!quiz || quiz.solved) return;
-
-  const { lat, lng } = quiz.location;
-
-  if (!guess.toLowerCase().startsWith('!g ')) return;
 
   const parts = guess.trim().split(' ');
   if (parts.length < 2) return;
@@ -1671,7 +2135,7 @@ async function handleGuess(message, guess) {
   if (!correctCountry) return;
 
   const isCorrect = checkCountryGuess(actualGuess, correctCountry);
-
+  const { lat, lng } = quiz.location;
 
   if (isCorrect) {
     quiz.solved = true;
@@ -1685,24 +2149,23 @@ async function handleGuess(message, guess) {
     const flag = countryInfo?.flag || '';
 
     await message.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle(`${flag} Correct!`)
-            .setDescription(`You guessed it right! The location is in **${correctCountry}**.`)
-            .addFields(
-              { name: 'Subdivision', value: `**${subdivision}**`, inline: true },
-              { name: 'Current Streak', value: `${quiz.currentStreak}`, inline: true },
-              {
-                name: "Exact Location",
-                value: `[Click here to view on Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}&heading=0&pitch=0)`
-              }
-            )
-            .setColor('#2ecc71')
-        ]
-      });
+      embeds: [
+        new EmbedBuilder()
+          .setTitle(`${flag} Correct!`)
+          .setDescription(`You guessed it right! The location is in **${correctCountry}**.`)
+          .addFields(
+            { name: 'Subdivision', value: `**${subdivision}**`, inline: true },
+            { name: 'Current Streak', value: `${quiz.currentStreak}`, inline: true },
+            {
+              name: "Exact Location",
+              value: `[Click here to view on Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}&heading=0&pitch=0)`
+            }
+          )
+          .setColor('#2ecc71')
+      ]
+    });
 
     quizzesByChannel[channelId] = {
-      country: correctCountry,
       message: quiz.message,
       startTime: Date.now(),
       solved: true,
@@ -1710,7 +2173,9 @@ async function handleGuess(message, guess) {
       currentStreak: quiz.currentStreak,
       participants: [],
       startedBy: quiz.startedBy,
-      location: quiz.location
+      location: quiz.location,
+      country: correctCountry,
+      subdivision: quiz.subdivision
     };
 
     setTimeout(async () => {
@@ -1736,6 +2201,7 @@ async function handleGuess(message, guess) {
           .setTitle('❌ Game Over!')
           .setDescription(`Wrong guess! The correct answer was **${correctCountry}** ${flag}.`)
           .addFields(
+            { name: 'Subdivision', value: `**${subdivision}**`, inline: true },
             { name: 'Total Time Played', value: formattedTime, inline: true },
             { name: 'Final Streak', value: `${quiz.currentStreak}`, inline: true },
             { name: 'Personal Best', value: `${personalBest}`, inline: true },
@@ -1746,16 +2212,23 @@ async function handleGuess(message, guess) {
             }
           )
           .setColor('#e74c3c')
-          .setFooter({ text: 'play worldguessr.com !' })
       ]
     });
-    quiz.participants = [];
     quizzesByChannel[channelId] = {
+      message: null,
+      startTime: Date.now(),
       solved: true,
-      currentStreak: 0
+      mapName: quiz.mapName,
+      currentStreak: 0,
+      participants: [],
+      startedBy: quiz.startedBy,
+      location: null,
+      country: null,
+      subdivision: null
     };
   }
 }
+
 
 
 function formatTime(milliseconds) {
