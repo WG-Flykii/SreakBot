@@ -1,3 +1,5 @@
+// Originally made by Flykii for the Worldguessr Discord. Join at https://discord.gg/nfebQwes6a !
+
 import { Client, GatewayIntentBits, Partials, ChannelType, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, PermissionFlagsBits, AttachmentBuilder } from 'discord.js';
 import fs from 'fs';
 import axios from 'axios';
@@ -10,15 +12,15 @@ import { dirname } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const TOKEN = 'MTI5NDk0ODgyNTMxMTQ4MTg1Ng.GJ1e8N.35JjLjMsDCUdc8bYuYhFiksjL_x0wC42e-_uAE';
+const TOKEN = ''; // BOT TOKEN 
 const PB_STREAK_PATH = path.join(__dirname, 'pb_streak.json');
 const LB_STREAK_PATH = path.join(__dirname, 'lb_streak.json');
 
-const ANN_CHANNEL_ID = '1371885464038146078'
-const QUIZ_CHANNEL_ID = '1292058135250337874';
-const PRIVATE_MSG_CHANNEL_ID = '1273947708356431933';
+const ANN_CHANNEL_ID = '' // ADMIN CHANNEL TO MAKE THE ANNOUNCEMENT FOR sendPrivateMessageOffer
+const QUIZ_CHANNEL_ID = ''; // MAIN CHANNEL 
+const PRIVATE_MSG_CHANNEL_ID = ''; // CHANNEL TO ANNOUNCE sendPrivateMessageOffer
 
-const COUNTRIES_DATA = {
+const COUNTRIES_DATA = { // list of aliases for every countries and terrritories
     //africa
     "angola": {
         "flag": "🇦🇴",
@@ -1744,6 +1746,7 @@ async function handleGuess(message, guess) {
             }
           )
           .setColor('#e74c3c')
+          .setFooter({ text: 'play worldguessr.com !' })
       ]
     });
     quiz.participants = [];
@@ -2204,3 +2207,4 @@ function loadStreakData() {
 
 loadStreakData();
 client.login(TOKEN);
+// by @flykii on discord
