@@ -1306,457 +1306,6 @@ async function getCountryFromCoordinates(lat, lng) {
 
     const address = response.data?.address;
     let country = address?.country;
-    let subdivision = address?.state || address?.region || address?.county || '';
-
-    if (country === 'United Kingdom') {
-      if (subdivision.toLowerCase().includes('england')) country = 'england';
-      else if (subdivision.toLowerCase().includes('scotland')) country = 'scotland';
-      else if (subdivision.toLowerCase().includes('wales')) country = 'wales';
-      else if (subdivision.toLowerCase().includes('northern ireland')) country = 'northern ireland';
-    }
-
-    if (country === 'United States') {
-      if (subdivision.toLowerCase().includes('us virgin islands')) country = 'us virgin islands';
-      else if (subdivision.toLowerCase().includes('puerto rico')) country = 'puerto rico';
-      else if (subdivision.toLowerCase().includes('guam')) country = 'guam';
-      else if (subdivision.toLowerCase().includes('american samoa')) country = 'american samoa';
-      else if (subdivision.toLowerCase().includes('northern mariana islands')) country = 'northern mariana islands';
-    }
-
-    const result = {
-      country: country?.toLowerCase() || 'unknown location',
-      subdivision: subdivision || 'Unknown subdivision'
-    };
-
-    locationCache[cacheKey] = result;
-    return result;
-  } catch (error) {
-    console.error('Error with Nominatim API:', error);
-    return { country: 'error', subdivision: 'unknown' };
-  }
-}
-
-
-
-function getWorldGuessrEmbedUrl(location) {
-  if (!location) return null;
-
-  const baseUrl = 'https://www.worldguessr.com/svEmbed';
-  const params = new URLSearchParams({
-    nm: 'true',
-    npz: 'false',
-    showRoadLabels: 'false',
-    lat: location.lat,
-    long: location.lng,
-    showAnswer: 'false'
-  });
-
-  if (location.heading !== undefined) params.append('heading', location.heading);
-  if (location.pitch !== undefined) params.append('pitch', location.pitch);
-  if (location.zoom !== undefined) params.append('zoom', location.zoom);
-
-  return `${baseUrl}?${params.toString()}`;
-}
-
-
-async function fetchMapLocations(mapName) {
-  const slug = maps[mapName];
-  if (!slug) throw new Error(`Unknown map name: ${mapName}`);
-
-  const url = `https://api.worldguessr.com/mapLocations/${slug}`;
-
-  if (locationCache[slug]) return locationCache[slug];
-
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to fetch map: ${mapName}`);
-
-  const data = await res.json();
-  if (!data.ready || !Array.isArray(data.locations)) {
-    throw new Error(`Map "${mapName}" is not ready or contains no locations.`);
-  }
-
-  locationCache[slug] = data.locations;
-  return data.locations;
-}
-
-async function preloadLocationCache() {
-  console.log("Preloading known locations...");
-
-  for (const mapName of availableMapNames) {
-    try {
-      const locations = await fetchMapLocations(mapName);
-      for (const location of locations) {
-        const cacheKey = `${location.lat.toFixed(6)},${location.lng.toFixed(6)}`;
-        
-        if (!locationCache[cacheKey]) {
-          try {
-            const locationInfo = await getCountryFromCoordinates(location.lat, location.lng);
-            if (locationInfo && locationInfo.country) {
-              locationCache[cacheKey] = {
-                country: locationInfo.country,
-                subdivision: locationInfo.subdivision
-              };
-            }
-          } catch (e) {
-            console.error(`Error preloading cache for ${cacheKey}:`, e);
-          }
-        }
-      }
-    } catch (e) {
-      console.error(`Error loading map ${mapName}:`, e);
-    }
-  }
-
-  console.log(`Location cache preloaded with ${Object.keys(locationCache).length} entries`);
-}
-
-
-
-async function takeScreenshot(url) {
-  let page;
-  let newPageCreated = false;
-
-  try {
-    const browser = await getBrowser();
-    
-    if (browserPage && !browserPage.isClosed()) {
-      page = browserPage;
-      await page.evaluate(() => window.stop());
-    } else {
-      page = await browser.newPage();
-      browserPage = page;
-      newPageCreated = true;
-      await page.setViewport({ 
-        width: 1280, 
-        height: 720,
-        deviceScaleFactor: 1
-      });
-    }
-
-    const pageTimeout = setTimeout(() => {
-      console.log("Global timeout exceeded, attempting screenshot anyway");
-    }, 1000);
-    
-    await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
-    
-    await page.evaluateOnNewDocument(() => {
-      window._resourcesLoaded = false;
-      window._canvasReady = false;
-      
-      const originalRequestAnimationFrame = window.requestAnimationFrame;
-      window.requestAnimationFrame = function(callback) {
-        window._canvasReady = true;
-        return originalRequestAnimationFrame(callback);
-      };
-    });
-    
-    console.log(`Navigating to URL: ${url}`);
-    await page.goto(url, { 
-      waitUntil: 'domcontentloaded',
-      timeout: 3000
-    });
-    
-    await page.mouse.move(640, 360);
-    await page.mouse.down();
-    await page.mouse.move(650, 360, { steps: 2 });
-    await page.mouse.up();
-    
-    try {
-      await page.waitForFunction(() => {
-        const canvas = document.querySelector('canvas');
-        return canvas && canvas.offsetWidth > 0;
-      }, { timeout: 3000 });
-    } catch (e) {
-      console.log("No canvas found, attempting to capture anyway");
-    }
-    
-    const startTime = Date.now();
-    let canProceed = false;
-    
-    while (!canProceed && (Date.now() - startTime < 3000)) {
-      canProceed = await page.evaluate(() => {
-        const canvas = document.querySelector('canvas');
-        if (!canvas) return false;
-        
-        try {
-          const ctx = canvas.getContext('2d');
-          const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-          
-          let nonBlackPixels = 0;
-          for (let i = 0; i < data.length; i += 30000) {
-            if (data[i] > 20 || data[i+1] > 20 || data[i+2] > 20) nonBlackPixels++;
-            if (nonBlackPixels > 3) return true;
-          }
-          
-          return false;
-        } catch(e) {
-          return window._canvasReady;
-        }
-      });
-      
-      if (!canProceed) {
-        await new Promise(resolve => setTimeout(resolve, 1500));
-      }
-    }
-    
-    await new Promise(resolve => setTimeout(resolve, 500)); // could me more if needed
-    
-    clearTimeout(pageTimeout);
-    
-    const screenshotBuffer = await page.screenshot({
-      fullPage: false,
-      clip: {
-        x: 0,
-        y: -3,
-        width: 1280,
-        height: 720
-      }
-    });
-    
-    const optimizedBuffer = await sharp(screenshotBuffer)
-      .resize(1280, 715)
-      .jpeg({ quality: 65 })
-      .toBuffer();
-      
-    return optimizedBuffer;
-  } catch (error) {const availableMapNames = [
-  "A Balanced World",
-  "An Arbitrary World",
-  "A Pro World",
-  "An Arbitrary Rural World"
-];
-
-
-const maps = {};
-availableMapNames.forEach(name => {
-  maps[name] = name.toLowerCase().replace(/\s+/g, '-');
-});
-const mapAliases = {
-  abw: "A Balanced World",
-  "a balanced world": "A Balanced World",
-
-  aaw: "An Arbitrary World",
-  "an arbitrary world": "An Arbitrary World",
-
-  apw: "A Pro World",
-  "a pro world": "A Pro World",
-
-  aarw: "An Arbitrary Rural World",
-  "an arbitrary rural world": "An Arbitrary Rural World",
-
-};
-async function initializeResources() {
-  console.log("Initialisation des ressources en cours...");
-  
-  try {
-    await getBrowser();
-    console.log("navigateur initialisé");
-    
-    if (typeof preloadLocationCache === 'function') {
-      await preloadLocationCache();
-      console.log("Cache d'emplacements préchargée");
-    } else {
-      console.log("La fonction preloadLocationCache n'est pas disponible, ignoré");
-    }
-    
-    console.log("Resources initialized and ready for fast quiz generation");
-    return true;
-  } catch (error) {
-    console.error("Erreur lors de l'initialisation des ressources:", error);
-    return false;
-  }
-}
-
-function resolveMapName(input) {
-  if (!input) return null;
-  return mapAliases[input.toLowerCase()] || null;
-}
-
-let browserPool = null;
-let isInitializingBrowser = false;
-const MAX_BROWSER_AGE = 10 * 60 * 1000; // 30 mins
-let browserStartTime = null;
-let browserPage = null;
-const locationCache = {};
-if (typeof quizzesByChannel === 'undefined') var quizzesByChannel = {};
-
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ],
-  partials: [Partials.Channel]
-});
-
-const COUNTRIES = {};
-
-Object.keys(COUNTRIES_DATA).forEach(country => {
-    COUNTRIES[country] = COUNTRIES_DATA[country];
-});
-
-const COUNTRY_LOOKUP = {};
-Object.keys(COUNTRIES).forEach(country => {
-  COUNTRY_LOOKUP[country.toLowerCase()] = country;
-  COUNTRIES[country].aliases.forEach(alias => {
-    COUNTRY_LOOKUP[alias.toLowerCase()] = country;
-  });
-});
-
-
-
-function loadJsonFile(filePath, defaultValue = {}) {
-  try {
-    if (fs.existsSync(filePath)) {
-      const data = fs.readFileSync(filePath, 'utf8');
-      return JSON.parse(data);
-    }
-    return defaultValue;
-  } catch (error) {
-    console.error(`Error loading file ${filePath}:`, error);
-    return defaultValue;
-  }
-}
-
-function saveJsonFile(filePath, data) {
-  try {
-    const dirPath = path.dirname(filePath);
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath, { recursive: true });
-    }
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
-  } catch (error) {
-    console.error(`Error saving to ${filePath}:`, error);
-  }
-}
-
-let personalBestStreaks = loadJsonFile(PB_STREAK_PATH, {});
-let leaderboardStreaks = loadJsonFile(LB_STREAK_PATH, {});
-
-async function initializeBrowser() {
-  try {
-    const browser = await puppeteer.launch({
-      headless: 'new',
-      args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--disable-gpu',
-        '--disable-extensions',
-        '--disable-background-networking',
-        '--disable-default-apps',
-        '--disable-sync',
-        '--disable-translate',
-        '--hide-scrollbars',
-        '--metrics-recording-only',
-        '--mute-audio',
-        '--safebrowsing-disable-auto-update'
-      ]
-    });
-    browserPool = browser;
-    browserStartTime = Date.now();
-    console.log('Browser initialized successfully');
-    
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
-    return page;
-  } catch (error) {
-    console.error(`Error initializing browser: ${error.message}`);
-    browserPool = null;
-  }
-}
-
-async function getBrowser() {
-  if (isInitializingBrowser) {
-    while (isInitializingBrowser) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    return browserPool;
-  }
-
-  const expired = !browserPool || (Date.now() - browserStartTime > MAX_BROWSER_AGE);
-  if (expired) {
-    isInitializingBrowser = true;
-
-    if (browserPool) {
-      try {
-        await browserPool.close();
-        browserPage = null;
-      } catch (err) {
-        console.error("Error closing old browser:", err);
-      }
-    }
-
-    try {
-      browserPool = await puppeteer.launch({
-        headless: 'new',
-        args: [
-          '--no-sandbox', 
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--disable-gpu',
-          '--disable-extensions'
-        ]
-      });
-      browserStartTime = Date.now();
-      console.log("Browser launched.");
-      
-      browserPage = await browserPool.newPage();
-      await browserPage.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
-      
-    } catch (err) {
-      console.error("Failed to launch browser:", err);
-      browserPool = null;
-    }
-
-    isInitializingBrowser = false;
-  }
-
-  return browserPool;
-}
-
-
-
-function normalizeCountry(countryName) {
-  const lookupKey = countryName.toLowerCase();
-  if (COUNTRY_LOOKUP[lookupKey]) {
-    return COUNTRY_LOOKUP[lookupKey];
-  }
-  
-  for (const key of Object.keys(COUNTRY_LOOKUP)) {
-    if (lookupKey.includes(key) || key.includes(lookupKey)) {
-      return COUNTRY_LOOKUP[key];
-    }
-  }
-  
-  return null;
-}
-
-async function getCountryFromCoordinates(lat, lng) {
-  const cacheKey = `${lat.toFixed(6)},${lng.toFixed(6)}`;
-
-  if (locationCache[cacheKey]) {
-    return locationCache[cacheKey];
-  }
-
-  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=5&addressdetails=1`;
-
-  try {
-    const response = await axios.get(url, {
-      headers: {
-        'User-Agent': 'GeoBot/1.0',
-        'Accept-Language': 'en'
-      }
-    });
-
-    const address = response.data?.address;
-    let country = address?.country;
     let subdivision =
       address?.state ||
       address?.province ||
@@ -1764,21 +1313,21 @@ async function getCountryFromCoordinates(lat, lng) {
       address?.territory ||
       address?.state_district ||
       address?.county ||
+      address?.administrative ||
       address?.municipality ||
-      address?.locality ||
+      address?.district ||
       address?.city ||
       address?.town ||
-      address?.suburb ||
       address?.village ||
+      address?.locality ||
+      address?.borough ||
+      address?.suburb ||
+      address?.neighbourhood ||
+      address?.hamlet ||
+      address?.ISO3166_2_lvl4 ||
+      address?.ISO3166_2_lvl6 ||
+      address?.political ||
       'Unknown subdivision';
-
-
-    if (country === 'United Kingdom') {
-      if (subdivision.toLowerCase().includes('england')) country = 'england';
-      else if (subdivision.toLowerCase().includes('scotland')) country = 'scotland';
-      else if (subdivision.toLowerCase().includes('wales')) country = 'wales';
-      else if (subdivision.toLowerCase().includes('northern ireland')) country = 'northern ireland';
-    }
 
     if (country === 'United States') {
       if (subdivision.toLowerCase().includes('us virgin islands')) country = 'us virgin islands';
@@ -1877,30 +1426,25 @@ async function preloadLocationCache() {
 
 
 
-async function takeScreenshot(url) {
+async function takeScreenshot(url, channelId) {
   let page;
   let newPageCreated = false;
 
   try {
     const browser = await getBrowser();
     
-    if (browserPage && !browserPage.isClosed()) {
-      page = browserPage;
-      await page.evaluate(() => window.stop());
-    } else {
-      page = await browser.newPage();
-      browserPage = page;
-      newPageCreated = true;
-      await page.setViewport({ 
-        width: 1280, 
-        height: 720,
-        deviceScaleFactor: 1
-      });
-    }
+    page = await browser.newPage();
+    newPageCreated = true;
+    
+    await page.setViewport({ 
+      width: 1280, 
+      height: 720,
+      deviceScaleFactor: 1
+    });
 
     const pageTimeout = setTimeout(() => {
       console.log("Global timeout exceeded, attempting screenshot anyway");
-    }, 1000);
+    }, 3000);
     
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
     
@@ -1915,7 +1459,7 @@ async function takeScreenshot(url) {
       };
     });
     
-    console.log(`Navigating to URL: ${url}`);
+    console.log(`Navigating to URL: ${url} for channel ${channelId}`);
     await page.goto(url, { 
       waitUntil: 'domcontentloaded',
       timeout: 3000
@@ -1930,7 +1474,7 @@ async function takeScreenshot(url) {
       await page.waitForFunction(() => {
         const canvas = document.querySelector('canvas');
         return canvas && canvas.offsetWidth > 0;
-      }, { timeout: 3000 });
+      }, { timeout: 5000 });
     } catch (e) {
       console.log("No canvas found, attempting to capture anyway");
     }
@@ -1964,7 +1508,7 @@ async function takeScreenshot(url) {
       }
     }
     
-    await new Promise(resolve => setTimeout(resolve, 500)); // could me more if needed
+    await new Promise(resolve => setTimeout(resolve, 500));
     
     clearTimeout(pageTimeout);
     
@@ -1982,11 +1526,19 @@ async function takeScreenshot(url) {
       .resize(1280, 715)
       .jpeg({ quality: 65 })
       .toBuffer();
-      
+    
     return optimizedBuffer;
   } catch (error) {
-    console.error(`Error taking screenshot: ${error.message}`);
+    console.error(`Error taking screenshot for channel ${channelId}: ${error.message}`);
     throw error;
+  } finally {
+    if (page && newPageCreated) {
+      try {
+        await page.close();
+      } catch (err) {
+        console.error("Error closing page:", err);
+      }
+    }
   }
 }
 
@@ -2077,7 +1629,7 @@ async function startQuiz(channel, mapName = null, userId = null) {
     }
 
     const [screenshotBuffer, locationInfo] = await Promise.all([
-      takeScreenshot(embedUrl),
+      takeScreenshot(embedUrl, channel.id),
       getCountryFromCoordinates(location.lat, location.lng)
     ]);
 
@@ -2140,8 +1692,62 @@ async function handleGuess(message, guess) {
   if (isCorrect) {
     quiz.solved = true;
     quiz.currentStreak++;
-
+    
+    const userId = message.author.id;
+    const username = message.author.username;
+    const mapName = quiz.mapName;
     const quizTime = Date.now() - quiz.startTime;
+    
+    if (!personalBestStreaks[userId]) {
+      personalBestStreaks[userId] = {};
+    }
+    
+    if (!personalBestStreaks[userId][mapName]) {
+      personalBestStreaks[userId][mapName] = {
+        streak: quiz.currentStreak,
+        totalTime: quizTime,
+        lastUpdate: Date.now(),
+        username: username
+      };
+    } else if (quiz.currentStreak > personalBestStreaks[userId][mapName].streak) {
+      personalBestStreaks[userId][mapName] = {
+        streak: quiz.currentStreak,
+        totalTime: quizTime,
+        lastUpdate: Date.now(),
+        username: username
+      };
+    }
+    
+    if (!leaderboardStreaks[mapName]) {
+      leaderboardStreaks[mapName] = [];
+    }
+
+    const userIndex = leaderboardStreaks[mapName].findIndex(entry => entry.userId === userId);
+    
+    const leaderboardEntry = {
+      userId: userId,
+      username: username,
+      streak: quiz.currentStreak,
+      totalTime: quizTime,
+      lastUpdate: Date.now()
+    };
+    
+    if (userIndex === -1) {
+      leaderboardStreaks[mapName].push(leaderboardEntry);
+    } else if (quiz.currentStreak > leaderboardStreaks[mapName][userIndex].streak) {
+      leaderboardStreaks[mapName][userIndex] = leaderboardEntry;
+    }
+    
+    leaderboardStreaks[mapName].sort((a, b) => {
+      if (b.streak !== a.streak) {
+        return b.streak - a.streak;
+      }
+      return a.totalTime - b.totalTime;
+    });
+    
+    saveJsonFile(PB_STREAK_PATH, personalBestStreaks);
+    saveJsonFile(LB_STREAK_PATH, leaderboardStreaks);
+
     const formattedTime = formatTime(quizTime);
 
     const countryInfo = COUNTRIES[correctCountry.toLowerCase()] ||
@@ -2268,24 +1874,8 @@ async function createPrivateThread(interaction, userId) {
     if (announcementChannel && announcementChannel.isTextBased()) {
       await announcementChannel.send(`🧵 A new private thread was created by <@${userId}>!\nJoin it here: <https://discord.com/channels/${interaction.guild.id}/${thread.id}>`);
     }
-    setTimeout(async () => {
-      try {
-        const freshThread = await client.channels.fetch(thread.id);
-        if (freshThread && freshThread.isThread() && !freshThread.archived) {
-          const lastMessage = await freshThread.messages.fetch({ limit: 1 });
-          const lastActivity = lastMessage.first()?.createdTimestamp || freshThread.createdTimestamp;
-          const now = Date.now();
-          const hoursInactive = (now - lastActivity) / (1000 * 60 * 60);
-
-          if (hoursInactive >= 24) {
-            await freshThread.delete(`Thread inactive for over 24h`);
-            console.log(`Deleted inactive thread: ${freshThread.name}`);
-          }
-        }
-      } catch (err) {
-        console.error(`Error checking or deleting thread:`, err);
-      }
-    }, 24 * 60 * 60 * 1000);
+    
+    scheduleThreadInactivityCheck(thread.id);
     
     await thread.send({
       embeds: [
@@ -2322,17 +1912,90 @@ async function createPrivateThread(interaction, userId) {
   }
 }
 
+function scheduleThreadInactivityCheck(threadId) {
+  setTimeout(async () => {
+    try {
+      const thread = await client.channels.fetch(threadId);
+      if (thread && thread.isThread() && !thread.archived) {
+        const lastMessage = await thread.messages.fetch({ limit: 1 });
+        const lastActivity = lastMessage.first()?.createdTimestamp || thread.createdTimestamp;
+        const now = Date.now();
+        const hoursInactive = (now - lastActivity) / (1000 * 60 * 60);
 
+        if (hoursInactive >= 24) {
+          await thread.delete(`Thread inactive for over 24h`);
+          console.log(`Deleted inactive thread: ${thread.name}`);
+        } else {
+          const remainingTimeMs = (24 - hoursInactive) * 60 * 60 * 1000;
+          scheduleThreadInactivityCheck(threadId);
+        }
+      }
+    } catch (err) {
+      console.error(`Error checking or deleting thread ${threadId}:`, err);
+    }
+  }, 24 * 60 * 60 * 1000);
+}
 
+async function checkAllQuizThreadsForInactivity() {
+  try {
+    const quizChannel = await client.channels.fetch(QUIZ_CHANNEL_ID);
+    if (!quizChannel) {
+      console.error('Quiz channel not found!');
+      return;
+    }
+    
+    const threads = await quizChannel.threads.fetchActive();
+    
+    threads.threads.forEach(async (thread) => {
+      try {
+        if (thread.isThread() && !thread.archived) {
+          const lastMessage = await thread.messages.fetch({ limit: 1 });
+          const lastActivity = lastMessage.first()?.createdTimestamp || thread.createdTimestamp;
+          const now = Date.now();
+          const hoursInactive = (now - lastActivity) / (1000 * 60 * 60);
+
+          if (hoursInactive >= 24) {
+            await thread.delete(`Thread inactive for over 24h`);
+            console.log(`Deleted inactive thread: ${thread.name}`);
+          } else {
+            scheduleThreadInactivityCheck(thread.id);
+          }
+        }
+      } catch (err) {
+        console.error(`Error checking thread ${thread.id}:`, err);
+      }
+    });
+    
+    const archivedThreads = await quizChannel.threads.fetchArchived();
+    
+    archivedThreads.threads.forEach(async (thread) => {
+      try {
+        const lastMessage = await thread.messages.fetch({ limit: 1 });
+        const lastActivity = lastMessage.first()?.createdTimestamp || thread.createdTimestamp;
+        const now = Date.now();
+        const hoursInactive = (now - lastActivity) / (1000 * 60 * 60);
+
+        if (hoursInactive >= 24) {
+          await thread.delete(`Thread inactive for over 24h`);
+          console.log(`Deleted inactive thread: ${thread.name}`);
+        }
+      } catch (err) {
+        console.error(`Error checking archived thread ${thread.id}:`, err);
+      }
+    });
+  } catch (error) {
+    console.error('Error checking all quiz threads:', error);
+  }
+}
 
 async function showLeaderboard(channel, inputName) {
-  const mapNames = Object.keys(maps);
+  const mapNames = availableMapNames;
 
   const normalizedInput = inputName?.toLowerCase();
 
   let mapName = mapAliases[normalizedInput] || inputName;
 
-  if (!mapName || !maps[mapName]) {
+  if (!mapName || !mapNames.includes(mapName)) {
     const similarMap = mapNames.find(m => m.toLowerCase() === normalizedInput);
     if (similarMap) {
       mapName = similarMap;
@@ -2368,24 +2031,62 @@ async function showLeaderboard(channel, inputName) {
 }
 
 
+
 async function showPersonalStats(message) {
-  const userId = message.author.id;
+  let userId = message.author.id;
+  let username = message.author.username;
+  let targetUser = message.author;
+  
+  const content = message.content.trim();
+  if (content.startsWith('!stats ')) {
+    const mentionOrName = content.substring('!stats '.length).trim();
+    
+    if (message.mentions.users.size > 0) {
+      targetUser = message.mentions.users.first();
+      userId = targetUser.id;
+      username = targetUser.username;
+    }
+    else if (mentionOrName) {
+      let found = false;
+      
+      for (const [id, maps] of Object.entries(personalBestStreaks)) {
+        for (const mapData of Object.values(maps)) {
+          if (mapData.username && mapData.username.toLowerCase() === mentionOrName.toLowerCase()) {
+            userId = id;
+            username = mapData.username;
+            const user = client.users.cache.get(id);
+            if (user) {
+              targetUser = user;
+            }
+            found = true;
+            break;
+          }
+        }
+        
+        if (found) break;
+      }
+      
+      if (!found) {
+        return message.reply(`User "${mentionOrName}" not found in stats database`);
+      }
+    }
+  }
+  
   const userStats = personalBestStreaks[userId] || {};
   
   if (Object.keys(userStats).length === 0) {
-    return message.reply("You don't have any recorded stats yet. Start playing to set some records!");
+    return message.reply(`${username} doesn't have streak yet (noob)`);
   }
   
   const embed = new EmbedBuilder()
-    .setTitle(`📊 ${message.author.username}'s Personal Stats`)
-    .setColor('#9b59b6')
-    .setThumbnail(message.author.displayAvatarURL());
+    .setTitle(`📊 Stats for ${username}`)
+    .setColor('#9b59b6');
   
   let description = '';
   for (const [mapName, stats] of Object.entries(userStats)) {
     const formattedTime = formatTime(stats.totalTime);
     
-    let position = 'Not Ranked';
+    let position = 'not ranked';
     if (leaderboardStreaks[mapName]) {
       const userPos = leaderboardStreaks[mapName].findIndex(entry => entry.userId === userId);
       if (userPos >= 0) {
@@ -2413,6 +2114,7 @@ client.on('interactionCreate', async (interaction) => {
 
 client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}!`);
+  initializeThreadCleanup();
   await initializeResources();
   try {
     await initializeResources();
@@ -2468,7 +2170,7 @@ async function sendPrivateMessageOffer() {
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
   
-  const content = message.content.toLowerCase();
+  const content = message.content.trim();
   
   if (content === '!private_msg' && message.channel.id === PRIVATE_MSG_CHANNEL_ID) {
     if (message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
@@ -2615,7 +2317,7 @@ client.on('messageCreate', async message => {
       .setColor('#3498db');
     
     await message.channel.send({ embeds: [helpEmbed] });
-  } else if (content === '!stats') {
+  } if (content.startsWith('!stats')) {
     if (
       message.channel.id !== QUIZ_CHANNEL_ID &&
       (!message.channel.isThread() || message.channel.parentId !== QUIZ_CHANNEL_ID)
@@ -2624,6 +2326,7 @@ client.on('messageCreate', async message => {
     }
 
     await showPersonalStats(message);
+    return;
   } else if (content.startsWith('!leaderboard')) {
     if (
       message.channel.id !== QUIZ_CHANNEL_ID &&
@@ -2676,6 +2379,12 @@ function loadStreakData() {
     personalBestStreaks = {};
     leaderboardStreaks = {};
   }
+}
+function initializeThreadCleanup() {
+  checkAllQuizThreadsForInactivity();
+  setInterval(() => {
+    checkAllQuizThreadsForInactivity();
+  }, 6 * 60 * 60 * 1000);
 }
 
 loadStreakData();
