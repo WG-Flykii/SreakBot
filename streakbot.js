@@ -1072,7 +1072,13 @@ const availableMapNames = [
   "A Balanced World",
   "An Arbitrary World",
   "A Pro World",
-  "An Arbitrary Rural World"
+  "An Arbitrary Rural World",
+  "A Balanced South America",
+  "A Balanced Europe",
+  "A Balanced North America",
+  "A Balanced Asia",
+  "A Balanced Africa",
+  "A Balanced Oceania"
 ];
 
 
@@ -1093,9 +1099,27 @@ const mapAliases = {
   aarw: "An Arbitrary Rural World",
   "an arbitrary rural world": "An Arbitrary Rural World",
 
+  absa: "A Balanced South America",
+  "a balanced south america": "A Balanced South America",
+
+  abe: "A Balanced Europe",
+  "a balanced europe": "A Balanced Europe",
+
+  abna: "A Balanced North America",
+  "a balanced north america": "A Balanced North America",
+
+  aba: "A Balanced Asia",
+  "a balanced asia": "A Balanced Asia",
+
+  abf: "A Balanced Africa",
+  "a balanced africa": "A Balanced Africa",
+
+  abo: "A Balanced Oceania",
+  "a balanced oceania": "A Balanced Oceania",
+
 };
 async function initializeResources() {
-  console.log("Initialisation des ressources en cours...");
+  console.log("QUOICOUBEH JE CHARGE");
   
   try {
     await getBrowser();
@@ -1182,41 +1206,6 @@ function saveJsonFile(filePath, data) {
 let personalBestStreaks = loadJsonFile(PB_STREAK_PATH, {});
 let leaderboardStreaks = loadJsonFile(LB_STREAK_PATH, {});
 
-async function initializeBrowser() {
-  try {
-    const browser = await puppeteer.launch({
-      headless: 'new',
-      args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--disable-gpu',
-        '--disable-extensions',
-        '--disable-background-networking',
-        '--disable-default-apps',
-        '--disable-sync',
-        '--disable-translate',
-        '--hide-scrollbars',
-        '--metrics-recording-only',
-        '--mute-audio',
-        '--safebrowsing-disable-auto-update'
-      ]
-    });
-    browserPool = browser;
-    browserStartTime = Date.now();
-    console.log('Browser initialized successfully');
-    
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
-    return page;
-  } catch (error) {
-    console.error(`Error initializing browser: ${error.message}`);
-    browserPool = null;
-  }
-}
 
 async function getBrowser() {
   if (isInitializingBrowser) {
@@ -1339,14 +1328,15 @@ async function getCountryFromCoordinates(lat, lng) {
 
     const result = {
       country: country?.toLowerCase() || 'unknown location',
-      subdivision: subdivision || 'Unknown subdivision'
+      subdivision: subdivision || 'Unknown subdivision',
+      address
     };
 
     locationCache[cacheKey] = result;
     return result;
   } catch (error) {
     console.error('Error with Nominatim API:', error);
-    return { country: 'error', subdivision: 'unknown' };
+    return { country, subdivision, address };
   }
 }
 
@@ -1444,7 +1434,7 @@ async function takeScreenshot(url, channelId) {
 
     const pageTimeout = setTimeout(() => {
       console.log("Global timeout exceeded, attempting screenshot anyway");
-    }, 3000);
+    }, 4000);
     
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
     
@@ -1658,6 +1648,8 @@ async function startQuiz(channel, mapName = null, userId = null) {
     await loadingMessage.delete().catch(e => console.error("Couldn't delete loading message:", e));
 
     console.log(`New quiz started in channel ${channel.id}. Map: ${selectedMapName}, Answer: ${locationInfo.country}`);
+    console.log(JSON.stringify(locationInfo.address, null, 2));
+
   } catch (error) {
     console.error(`Error starting quiz: ${error.message}`);
     await channel.send("An error occurred while creating the quiz. Please do !stop, and try again.");
