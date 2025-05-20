@@ -1461,8 +1461,8 @@ async function takeScreenshot(url, channelId) {
     
     console.log(`Navigating to URL: ${url} for channel ${channelId}`);
     await page.goto(url, { 
-      waitUntil: 'domcontentloaded',
-      timeout: 3000
+      waitUntil: 'networkidle0',
+      timeout: 10000
     });
     
     await page.mouse.move(640, 360);
