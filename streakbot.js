@@ -1860,11 +1860,10 @@ async function createPrivateThread(interaction, userId) {
     });
     
     await thread.members.add(userId);
-    const announcementChannelId = '1273947708356431933';
-    const announcementChannel = await client.channels.fetch(announcementChannelId);
+    const ANN_CHANNEL_ID = await client.channels.fetch(ANN_CHANNEL_ID);
 
-    if (announcementChannel && announcementChannel.isTextBased()) {
-      await announcementChannel.send(`🧵 A new private thread was created by <@${userId}>!\nJoin it here: <https://discord.com/channels/${interaction.guild.id}/${thread.id}>`);
+    if (ANN_CHANNEL_ID && ANN_CHANNEL_ID.isTextBased()) {
+      await ANN_CHANNEL_ID.send(`🧵 A new private thread was created by <@${userId}>!\nJoin it here: <https://discord.com/channels/${interaction.guild.id}/${thread.id}>`);
     }
     
     scheduleThreadInactivityCheck(thread.id);
