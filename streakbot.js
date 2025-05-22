@@ -1081,7 +1081,6 @@ const availableMapNames = [
   "A Balanced Oceania"
 ];
 
-
 const maps = {};
 availableMapNames.forEach(name => {
   maps[name] = name.toLowerCase().replace(/\s+/g, '-');
@@ -1111,12 +1110,30 @@ const mapAliases = {
   aba: "A Balanced Asia",
   "a balanced asia": "A Balanced Asia",
 
-  abf: "A Balanced Africa",
+  abaf: "A Balanced Africa",
   "a balanced africa": "A Balanced Africa",
 
   abo: "A Balanced Oceania",
   "a balanced oceania": "A Balanced Oceania",
+};
+const mapImages = {
+  "a balanced africa": { name: "A Balanced Africa", file: "abaf_locations.png" },
+  "abaf": { name: "A Balanced Africa", file: "abaf_locations.png" },
 
+  "a balanced europe": { name: "A Balanced Europe", file: "abe_locations.png" },
+  "abe": { name: "A Balanced Europe", file: "abe_locations.png" },
+
+  "a balanced asia": { name: "A Balanced Asia", file: "aba_locations.png" },
+  "aba": { name: "A Balanced Asia", file: "aba_locations.png" },
+
+  "a balanced south america": { name: "A Balanced South America", file: "absa_locations.png" },
+  "absa": { name: "A Balanced South America", file: "absa_locations.png" },
+
+  "a balanced north america": { name: "A Balanced North America", file: "abna_locations.png" },
+  "abna": { name: "A Balanced North America", file: "abna_locations.png" },
+
+  "a balanced oceania": { name: "A Balanced Oceania", file: "abo_locations.png" },
+  "abo": { name: "A Balanced Oceania", file: "abo_locations.png" },
 };
 async function initializeResources() {
   console.log("QUOICOUBEH JE CHARGE");
@@ -1316,6 +1333,8 @@ async function getCountryFromCoordinates(lat, lng) {
       address?.ISO3166_2_lvl4 ||
       address?.ISO3166_2_lvl6 ||
       address?.political ||
+      address?.ISO3166_2_lvl ||
+      address?.subdivision ||
       'Unknown subdivision';
 
     if (country === 'United States') {
@@ -1324,6 +1343,10 @@ async function getCountryFromCoordinates(lat, lng) {
       else if (subdivision.toLowerCase().includes('guam')) country = 'guam';
       else if (subdivision.toLowerCase().includes('american samoa')) country = 'american samoa';
       else if (subdivision.toLowerCase().includes('northern mariana islands')) country = 'northern mariana islands';
+    }
+    if (subdivision?.toLowerCase() === 'greenland') {
+      country = 'unknown'; 
+      subdivision = 'greenland';
     }
 
     const result = {
@@ -1414,7 +1437,21 @@ async function preloadLocationCache() {
   console.log(`Location cache preloaded with ${Object.keys(locationCache).length} entries`);
 }
 
-
+function isWhiteScreen(buffer) {
+  try {
+    const image = sharp(buffer);
+    return image.stats().then(stats => {
+      const avgBrightness = (stats.channels[0].mean + stats.channels[1].mean + stats.channels[2].mean) / 3;
+      const isVeryBright = avgBrightness > 240;
+      const isUniform = (stats.channels[0].stdev + stats.channels[1].stdev + stats.channels[2].stdev) / 3 < 15;
+      
+      return isVeryBright && isUniform;
+    });
+  } catch (error) {
+    console.error('error while analyzing image:', error);
+    return false;
+  }
+}
 
 async function takeScreenshot(url, channelId) {
   let page;
@@ -1452,7 +1489,7 @@ async function takeScreenshot(url, channelId) {
     console.log(`Navigating to URL: ${url} for channel ${channelId}`);
     await page.goto(url, { 
       waitUntil: 'networkidle0',
-      timeout: 10000
+      timeout: 7000
     });
     
     await page.mouse.move(640, 360);
@@ -1608,32 +1645,65 @@ async function startQuiz(channel, mapName = null, userId = null) {
       return;
     }
 
-    const location = mapLocations[Math.floor(Math.random() * mapLocations.length)];
-    quizzesByChannel[channel.id].location = location;
+    let validLocationFound = false;
+    let attempts = 0;
+    const maxAttempts = 5;
+    let finalLocationInfo = null;
+    let finalScreenshotBuffer = null;
+    let finalLocation = null;
+    
+    while (!validLocationFound && attempts < maxAttempts) {
+      attempts++;
+      console.log(`attempt ${attempts}/${maxAttempts} to find valid loc`);
+      
+      const location = mapLocations[Math.floor(Math.random() * mapLocations.length)];
 
-    const embedUrl = getWorldGuessrEmbedUrl(location);
-    if (!embedUrl) {
+      const embedUrl = getWorldGuessrEmbedUrl(location);
+      if (!embedUrl) {
+        console.log(`INVALID URL for ${location.lat}, ${location.lng} trying again`);
+        continue;
+      }
+
+      try {
+        const [screenshotBuffer, locationInfo] = await Promise.all([
+          takeScreenshot(embedUrl, channel.id),
+          getCountryFromCoordinates(location.lat, location.lng)
+        ]);
+
+        if (!locationInfo || !locationInfo.country) {
+          console.log(`no country for ${location.lat}, ${location.lng}, trying again`);
+          continue;
+        }
+
+        const isWhite = await isWhiteScreen(screenshotBuffer);
+        
+        if (isWhite) {
+          console.log(`WHITE SCREEN BUDDY ${location.lat}, ${location.lng}, trying again`);
+          continue;
+        }
+
+        validLocationFound = true;
+        finalLocationInfo = locationInfo;
+        finalScreenshotBuffer = screenshotBuffer;
+        finalLocation = location;
+        
+      } catch (error) {
+        console.error(`error after ${attempts}:`, error.message);
+        continue;
+      }
+    }
+
+    if (!validLocationFound || !finalLocationInfo || !finalScreenshotBuffer || !finalLocation) {
       await loadingMessage.delete().catch(e => console.error("Couldn't delete loading message:", e));
-      await channel.send("Error generating quiz location.");
+      await channel.send(`couldnt find any valid location after ${maxAttempts} attempts :sob:, ping flykii and ask his to get back to work`);
       return;
     }
 
-    const [screenshotBuffer, locationInfo] = await Promise.all([
-      takeScreenshot(embedUrl, channel.id),
-      getCountryFromCoordinates(location.lat, location.lng)
-    ]);
+    quizzesByChannel[channel.id].location = finalLocation;
+    quizzesByChannel[channel.id].country = finalLocationInfo.country;
+    quizzesByChannel[channel.id].subdivision = finalLocationInfo.subdivision;
 
-    if (!locationInfo || !locationInfo.country) {
-      await loadingMessage.delete().catch(e => console.error("Couldn't delete loading message:", e));
-      await channel.send("Error fetching country for the location.");
-      return;
-    }
-
-    quizzesByChannel[channel.id].country = locationInfo.country;
-    quizzesByChannel[channel.id].subdivision = locationInfo.subdivision;
-
-
-    const attachment = new AttachmentBuilder(screenshotBuffer, { name: 'quiz_location.jpg' });
+    const attachment = new AttachmentBuilder(finalScreenshotBuffer, { name: 'quiz_location.jpg' });
 
     const embed = new EmbedBuilder()
       .setTitle(`🌍 Country streak – ${selectedMapName}`)
@@ -1646,9 +1716,9 @@ async function startQuiz(channel, mapName = null, userId = null) {
     quizzesByChannel[channel.id].message = quizMessage;
 
     await loadingMessage.delete().catch(e => console.error("Couldn't delete loading message:", e));
+    console.log(`[${new Date().toLocaleTimeString([], { hour12: false })}] New quiz started in channel ${channel.id}. Map: ${selectedMapName}, Answer: ${finalLocationInfo.country}`);
+    console.log(JSON.stringify(finalLocationInfo.address, null, 2));
 
-    console.log(`New quiz started in channel ${channel.id}. Map: ${selectedMapName}, Answer: ${locationInfo.country}`);
-    console.log(JSON.stringify(locationInfo.address, null, 2));
 
   } catch (error) {
     console.error(`Error starting quiz: ${error.message}`);
@@ -2303,6 +2373,7 @@ client.on('messageCreate', async message => {
         { name: '!stats', value: 'Show your personal stats and records' },
         { name: '!leaderboard <map>', value: 'Show the leaderboard for a specific map' },
         { name: '!invite @user', value: 'Invite a user to your private thread *(only works in threads)*' },
+        { name: '!map, !locs or !location <map>', value: 'display the distribution for a specific map (only for continents)' },
         { name: '!help', value: 'Show this help message' }
       )
       .setColor('#3498db');
@@ -2341,8 +2412,38 @@ client.on('messageCreate', async message => {
 
     await showLeaderboard(message.channel, resolvedMapName);
   }
+const isAllowed =
+    message.channel.id === QUIZ_CHANNEL_ID ||
+    (message.channel.isThread() && message.channel.parentId === QUIZ_CHANNEL_ID);
+
+  if (!isAllowed) return;
+
+  const [command, ...args] = message.content.trim().toLowerCase().split(/\s+/);
+  if (!["!map", "!locs", "!locations", "!distribution"].includes(command)) return;
+
+  const key = args.join(" ");
+  const map = mapImages[key];
+
+  if (!map) {
+    return message.reply("❌ Unknown map. Try `abe`, `abaf`, or full names like `a balanced europe`.");
+  }
+
+  const imagePath = path.join(__dirname, "locs_map_sb", map.file);
+
+  if (!fs.existsSync(imagePath)) {
+    return message.reply("❌ Image file not found.");
+  }
+
+  const file = new AttachmentBuilder(imagePath);
+  const embed = new EmbedBuilder()
+    .setTitle(`${map.name} - Distribution`)
+    .setImage(`attachment://${map.file}`)
+    .setColor(0x2ecc71);
+
+  await message.channel.send({ embeds: [embed], files: [file] });
 
 });
+
 
 function loadStreakData() {
   try {
