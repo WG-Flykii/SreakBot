@@ -15,13 +15,13 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const TOKEN = process.env.TOKEN; // BOT TOKEN 
 const PB_STREAK_PATH = path.join(__dirname, 'data/pb_streak.json');
 const LB_STREAK_PATH = path.join(__dirname, 'data/lb_streak.json');
 
-const ANN_CHANNEL_ID = process.env.ANN_CHANNEL_ID // ADMIN CHANNEL TO MAKE THE ANNOUNCEMENT FOR sendPrivateMessageOffer
-const QUIZ_CHANNEL_ID = process.env.QUIZ_CHANNEL_ID; // MAIN CHANNEL 
-const PRIVATE_MSG_CHANNEL_ID = process.env.PRIVATE_MSG_CHANNEL_ID; // CHANNEL TO ANNOUNCE sendPrivateMessageOffer
+const BOT_TOKEN = process.env.BOT_TOKEN; // Token for the discord bot
+const CREATE_QUIZ_CHANNEL_ID = process.env.CREATE_QUIZ_CHANNEL_ID // Channel to send sendPrivateMessageOffer
+const QUIZ_CHANNEL_ID = process.env.QUIZ_CHANNEL_ID; // Main quiz channel
+const ADMIN_CHANNEL_ID = process.env.ADMIN_CHANNEL_ID; // Channel to make sendPrivateMessageOffer
 
 import { COUNTRIES_DATA } from './countries_data.js';
 import { availableMapNames, maps, mapAliases } from './maps_data.js'
@@ -768,7 +768,7 @@ async function createPrivateThread(interaction, userId) {
     });
     
     await thread.members.add(userId);
-    const announcementChannel = await client.channels.fetch(PRIVATE_MSG_CHANNEL_ID);
+    const announcementChannel = await client.channels.fetch(ADMIN_CHANNEL_ID);
 
     if (announcementChannel && announcementChannel.isTextBased()) {
       await announcementChannel.send(`🧵 A new private thread was created by <@${userId}>!\nJoin it here: <https://discord.com/channels/${interaction.guild.id}/${thread.id}>`);
@@ -1025,7 +1025,7 @@ client.once('ready', async () => {
 
 async function sendPrivateMessageOffer() {
   try {
-    const channel = await client.channels.fetch(ANN_CHANNEL_ID);
+    const channel = await client.channels.fetch(CREATE_QUIZ_CHANNEL_ID);
     if (!channel) {
       console.error('Quiz channel not found');
       return;
@@ -1071,7 +1071,7 @@ client.on('messageCreate', async message => {
   
   const content = message.content.trim();
   
-  if (content === '!private_msg' && message.channel.id === PRIVATE_MSG_CHANNEL_ID) {
+  if (content === '!private_msg' && message.channel.id === ADMIN_CHANNEL_ID) {
     if (message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
       await sendPrivateMessageOffer();
       await message.reply('Private thread creation message sent to the quiz channel!');
@@ -1287,5 +1287,5 @@ function initializeThreadCleanup() {
 }
 
 loadStreakData();
-client.login(TOKEN);
+client.login(BOT_TOKEN);
 // by @flykii on discord
