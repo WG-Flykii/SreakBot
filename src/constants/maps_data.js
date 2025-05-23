@@ -1,4 +1,4 @@
-export const availableMapNames = [
+export const AVAILABLE_MAP_NAMES = [
   "A Balanced World",
   "An Arbitrary World",
   "A Pro World",
@@ -12,12 +12,12 @@ export const availableMapNames = [
   "Map With Broken Locations Only"
 ];
 
-export const maps = {};
-availableMapNames.forEach(name => {
-  maps[name] = name.toLowerCase().replace(/\s+/g, '-');
+export const MAPS = {};
+AVAILABLE_MAP_NAMES.forEach(name => {
+  MAPS[name] = name.toLowerCase().replace(/\s+/g, '-');
 });
 
-export const mapAliases = {
+export const MAP_ALIASES = {
   abw: "A Balanced World",
   "a balanced world": "A Balanced World",
 
