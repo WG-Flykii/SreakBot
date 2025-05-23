@@ -26,3 +26,26 @@ Compete solo or with friends, track your best streaks, and climb the leaderboard
 
 ---
 ![Preview 3](https://i.imgur.com/Sii3YR7.png)
+
+---
+## **Environment**
+Create an `.env` file containing variables in this format:
+```js
+BOT_TOKEN=
+CREATE_QUIZ_CHANNEL_ID=
+QUIZ_CHANNEL_ID=
+ADMIN_CHANNEL_ID=
+```
+- `BOT_TOKEN`: Your Discord bot token
+- `CREATE_QUIZ_CHANNEL_ID`: The channel where the "Create Private Thread" button will be posted
+  ![Button Offer Channel](./images/announcement_screenshot.png)
+- `QUIZ_CHANNEL_ID`: The main channel where quizzes are played and where threads will be created
+  ![Quiz Channel](./images/quiz_channel_screenshot.png)
+- `ADMIN_CHANNEL_ID`: The channel where admins can use the `!private_msg` command to trigger the button message
+  ![Admin Channel](./images/admin_channel_screenshot.png)
+
+---
+## **Development**
+Run `npm i`
+If you want to hot reload, use `npm run dev`
+If no hot reload is necessary, use `node src/streakbot.js`
