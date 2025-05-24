@@ -27,18 +27,18 @@ import { COUNTRIES_DATA } from './constants/countries_data.js';
 import { AVAILABLE_MAP_NAMES, MAPS, MAP_ALIASES } from './constants/maps_data.js'
 
 // Initializes resources
-async function initializeResources() {  
+async function initializeResources() {
   try {
     await getBrowser();
     console.log("Initialized browser");
-    
+
     if (typeof preloadLocationCache === 'function') {
       await preloadLocationCache();
       console.log("Preloaded location cache");
     } else {
       console.log("Function preloadLocationCache is unavailable, ignored");
     }
-    
+
     console.log("Resources initialized and ready for fast quiz generation");
     return true;
   } catch (error) {
@@ -58,6 +58,7 @@ const MAX_BROWSER_AGE = 10 * 60 * 1000; // 30 mins
 let browserStartTime = null;
 let browserPage = null;
 const locationCache = {};
+const mapCache = {};
 if (typeof quizzesByChannel === 'undefined') var quizzesByChannel = {};
 
 const client = new Client({
@@ -141,7 +142,7 @@ async function getBrowser() {
       browserPool = await puppeteer.launch({
         headless: 'new',
         args: [
-          '--no-sandbox', 
+          '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
           '--disable-accelerated-2d-canvas',
@@ -153,10 +154,10 @@ async function getBrowser() {
       });
       browserStartTime = Date.now();
       console.log("Browser launched.");
-      
+
       browserPage = await browserPool.newPage();
       await browserPage.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
-      
+
     } catch (err) {
       console.error("Failed to launch browser:", err);
       browserPool = null;
@@ -175,13 +176,13 @@ function normalizeCountry(countryName) {
   if (COUNTRY_LOOKUP[lookupKey]) {
     return COUNTRY_LOOKUP[lookupKey];
   }
-  
+
   for (const key of Object.keys(COUNTRY_LOOKUP)) {
     if (lookupKey.includes(key) || key.includes(lookupKey)) {
       return COUNTRY_LOOKUP[key];
     }
   }
-  
+
   return null;
 }
 
@@ -236,7 +237,7 @@ async function getCountryFromCoordinates(lat, lng) {
     }
 
     const result = {
-      country: country?.toLowerCase() || 'unknown location',
+      country: country?.toLowerCase() || 'Unknown Location',
       subdivision: subdivision || 'Unknown subdivision',
       address
     };
@@ -278,7 +279,7 @@ async function fetchMapLocations(mapName) {
 
   const url = `https://api.worldguessr.com/mapLocations/${slug}`;
 
-  if (locationCache[slug]) return locationCache[slug];
+  if (mapCache[slug]) return mapCache[slug];
 
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch map: ${mapName}`);
@@ -288,7 +289,7 @@ async function fetchMapLocations(mapName) {
     throw new Error(`Map "${mapName}" is not ready or contains no locations.`);
   }
 
-  locationCache[slug] = data.locations;
+  mapCache[slug] = data.locations;
   return data.locations;
 }
 
@@ -300,15 +301,12 @@ async function preloadLocationCache() {
       const locations = await fetchMapLocations(mapName);
       for (const location of locations) {
         const cacheKey = `${location.lat.toFixed(6)},${location.lng.toFixed(6)}`;
-        
+
         if (!locationCache[cacheKey]) {
           try {
             const locationInfo = await getCountryFromCoordinates(location.lat, location.lng);
             if (locationInfo && locationInfo.country) {
-              locationCache[cacheKey] = {
-                country: locationInfo.country,
-                subdivision: locationInfo.subdivision
-              };
+              locationCache[cacheKey] = locationInfo;
             }
           } catch (e) {
             console.error(`Error preloading cache for ${cacheKey}:`, e);
@@ -331,12 +329,12 @@ async function takeScreenshot(url, channelId) {
 
   try {
     const browser = await getBrowser();
-    
+
     page = await browser.newPage();
     newPageCreated = true;
-    
-    await page.setViewport({ 
-      width: 1280, 
+
+    await page.setViewport({
+      width: 1280,
       height: 720,
       deviceScaleFactor: 1
     });
@@ -344,31 +342,31 @@ async function takeScreenshot(url, channelId) {
     const pageTimeout = setTimeout(() => {
       console.log("Global timeout exceeded, attempting screenshot anyway");
     }, 4000);
-    
+
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
-    
+
     await page.evaluateOnNewDocument(() => {
       window._resourcesLoaded = false;
       window._canvasReady = false;
-      
+
       const originalRequestAnimationFrame = window.requestAnimationFrame;
       window.requestAnimationFrame = function(callback) {
         window._canvasReady = true;
         return originalRequestAnimationFrame(callback);
       };
     });
-    
+
     console.log(`Navigating to URL: ${url} for channel ${channelId}`);
-    await page.goto(url, { 
+    await page.goto(url, {
       waitUntil: 'networkidle0',
       timeout: 10000
     });
-    
+
     await page.mouse.move(640, 360);
     await page.mouse.down();
     await page.mouse.move(650, 360, { steps: 2 });
     await page.mouse.up();
-    
+
     try {
       await page.waitForFunction(() => {
         const canvas = document.querySelector('canvas');
@@ -377,40 +375,40 @@ async function takeScreenshot(url, channelId) {
     } catch (e) {
       console.log("No canvas found, attempting to capture anyway");
     }
-    
+
     const startTime = Date.now();
     let canProceed = false;
-    
+
     while (!canProceed && (Date.now() - startTime < 3000)) {
       canProceed = await page.evaluate(() => {
         const canvas = document.querySelector('canvas');
         if (!canvas) return false;
-        
+
         try {
           const ctx = canvas.getContext('2d');
           const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-          
+
           let nonBlackPixels = 0;
           for (let i = 0; i < data.length; i += 30000) {
             if (data[i] > 20 || data[i+1] > 20 || data[i+2] > 20) nonBlackPixels++;
             if (nonBlackPixels > 3) return true;
           }
-          
+
           return false;
         } catch(e) {
           return window._canvasReady;
         }
       });
-      
+
       if (!canProceed) {
         await new Promise(resolve => setTimeout(resolve, 1500));
       }
     }
-    
+
     await new Promise(resolve => setTimeout(resolve, 500));
-    
+
     clearTimeout(pageTimeout);
-    
+
     const screenshotBuffer = await page.screenshot({
       fullPage: false,
       clip: {
@@ -420,12 +418,12 @@ async function takeScreenshot(url, channelId) {
         height: 720
       }
     });
-    
+
     const optimizedBuffer = await sharp(screenshotBuffer)
       .resize(1280, 715)
       .jpeg({ quality: 65 })
       .toBuffer();
-    
+
     return optimizedBuffer;
   } catch (error) {
     console.error(`Error taking screenshot for channel ${channelId}: ${error.message}`);
@@ -603,11 +601,11 @@ async function handleGuess(message, guess) {
     quiz.solved = true;
     quiz.currentStreak++;
     quiz.averageTime += (quizTime - quiz.averageTime) / quiz.currentStreak; // Math trick
-    
+
     if (!personalBestStreaks[userId]) {
       personalBestStreaks[userId] = {};
     }
-    
+
     if (!personalBestStreaks[userId][mapName]) {
       personalBestStreaks[userId][mapName] = {
         streak: quiz.currentStreak,
@@ -623,13 +621,13 @@ async function handleGuess(message, guess) {
         username: username
       };
     }
-    
+
     if (!leaderboardStreaks[mapName]) {
       leaderboardStreaks[mapName] = [];
     }
 
     const userIndex = leaderboardStreaks[mapName].findIndex(entry => entry.userId === userId);
-    
+
     const leaderboardEntry = {
       userId: userId,
       username: username,
@@ -637,20 +635,20 @@ async function handleGuess(message, guess) {
       averageTime: quiz.averageTime,
       lastUpdate: Date.now()
     };
-    
+
     if (userIndex === -1) {
       leaderboardStreaks[mapName].push(leaderboardEntry);
     } else if (quiz.currentStreak > leaderboardStreaks[mapName][userIndex].streak) {
       leaderboardStreaks[mapName][userIndex] = leaderboardEntry;
     }
-    
+
     leaderboardStreaks[mapName].sort((a, b) => {
       if (b.streak !== a.streak) {
         return b.streak - a.streak;
       }
       return a.averageTime - b.averageTime;
     });
-    
+
     saveJsonFile(PB_STREAK_PATH, personalBestStreaks);
     saveJsonFile(LB_STREAK_PATH, leaderboardStreaks);
 
@@ -749,7 +747,7 @@ function formatTime(milliseconds) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   const ms = Math.floor((milliseconds % 1000) / 10);
-  
+
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
 }
 
@@ -759,30 +757,30 @@ async function createPrivateThread(interaction, userId) {
       console.log('Interaction already acknowledged');
       return;
     }
-    
+
     await interaction.deferReply({ ephemeral: true });
-  
+
     const quizChannel = await client.channels.fetch(QUIZ_CHANNEL_ID);
     if (!quizChannel) {
       return interaction.editReply({ content: 'Quiz channel not found!', ephemeral: true });
     }
-    
+
     const threadName = `🏁 Private Quiz - ${interaction.user.username}`;
     const thread = await quizChannel.threads.create({
       name: threadName,
       type: ChannelType.PrivateThread,
       reason: `Private session for ${interaction.user.username}`
     });
-    
+
     await thread.members.add(userId);
     const announcementChannel = await client.channels.fetch(ADMIN_CHANNEL_ID);
 
     if (announcementChannel && announcementChannel.isTextBased()) {
       await announcementChannel.send(`🧵 A new private thread was created by <@${userId}>!\nJoin it here: <https://discord.com/channels/${interaction.guild.id}/${thread.id}>`);
     }
-    
+
     scheduleThreadInactivityCheck(thread.id);
-    
+
     await thread.send({
       embeds: [
         new EmbedBuilder()
@@ -796,23 +794,23 @@ async function createPrivateThread(interaction, userId) {
           .setColor('#3498db')
       ]
     });
-    
-    return interaction.editReply({ 
-      content: `Your private quiz thread has been created! [Join thread](https://discord.com/channels/${interaction.guild.id}/${thread.id})`, 
-      ephemeral: true 
+
+    return interaction.editReply({
+      content: `Your private quiz thread has been created! [Join thread](https://discord.com/channels/${interaction.guild.id}/${thread.id})`,
+      ephemeral: true
     });
   } catch (error) {
     console.error('Error creating thread:', error);
-    
+
     if (!interaction.replied && !interaction.deferred) {
-      return interaction.reply({ 
-        content: 'There was an error creating your private thread. Please try again later.', 
-        ephemeral: true 
+      return interaction.reply({
+        content: 'There was an error creating your private thread. Please try again later.',
+        ephemeral: true
       });
     } else {
-      return interaction.editReply({ 
-        content: 'There was an error creating your private thread. Please try again later.', 
-        ephemeral: true 
+      return interaction.editReply({
+        content: 'There was an error creating your private thread. Please try again later.',
+        ephemeral: true
       });
     }
   }
@@ -849,9 +847,9 @@ async function checkAllQuizThreadsForInactivity() {
       console.error('Quiz channel not found!');
       return;
     }
-    
+
     const threads = await quizChannel.threads.fetchActive();
-    
+
     threads.threads.forEach(async (thread) => {
       try {
         if (thread.isThread() && !thread.archived) {
@@ -871,9 +869,9 @@ async function checkAllQuizThreadsForInactivity() {
         console.error(`Error checking thread ${thread.id}:`, err);
       }
     });
-    
+
     const archivedThreads = await quizChannel.threads.fetchArchived();
-    
+
     archivedThreads.threads.forEach(async (thread) => {
       try {
         const lastMessage = await thread.messages.fetch({ limit: 1 });
@@ -942,11 +940,11 @@ async function showPersonalStats(message) {
   let userId = message.author.id;
   let username = message.author.username;
   let targetUser = message.author;
-  
+
   const content = message.content.trim();
   if (content.startsWith('!stats ')) {
     const mentionOrName = content.substring('!stats '.length).trim();
-    
+
     if (message.mentions.users.size > 0) {
       targetUser = message.mentions.users.first();
       userId = targetUser.id;
@@ -954,7 +952,7 @@ async function showPersonalStats(message) {
     }
     else if (mentionOrName) {
       let found = false;
-      
+
       for (const [id, maps] of Object.entries(personalBestStreaks)) {
         for (const mapData of Object.values(maps)) {
           if (mapData.username && mapData.username.toLowerCase() === mentionOrName.toLowerCase()) {
@@ -968,30 +966,30 @@ async function showPersonalStats(message) {
             break;
           }
         }
-        
+
         if (found) break;
       }
-      
+
       if (!found) {
         return message.reply(`User "${mentionOrName}" not found in stats database`);
       }
     }
   }
-  
+
   const userStats = personalBestStreaks[userId] || {};
-  
+
   if (Object.keys(userStats).length === 0) {
     return message.reply(`${username} doesn't have streak yet (noob)`);
   }
-  
+
   const embed = new EmbedBuilder()
     .setTitle(`📊 Stats for ${username}`)
     .setColor('#9b59b6');
-  
+
   let description = '';
   for (const [mapName, stats] of Object.entries(userStats)) {
     const formattedTime = formatTime(stats.totalTime);
-    
+
     let position = 'not ranked';
     if (leaderboardStreaks[mapName]) {
       const userPos = leaderboardStreaks[mapName].findIndex(entry => entry.userId === userId);
@@ -999,11 +997,11 @@ async function showPersonalStats(message) {
         position = `#${userPos + 1}`;
       }
     }
-    
+
     description += `**${mapName}**\n`;
     description += `Best Streak: ${stats.streak} | Time: ${formattedTime} | Rank: ${position}\n\n`;
   }
-  
+
   embed.setDescription(description);
   await message.reply({ embeds: [embed] });
 }
@@ -1027,7 +1025,7 @@ client.once('ready', async () => {
   } catch (error) {
     console.error("Erreur lors de l'initialisation des ressources:", error);
   }
-  
+
 });
 
 async function sendPrivateMessageOffer() {
@@ -1037,7 +1035,7 @@ async function sendPrivateMessageOffer() {
       console.error('Quiz channel not found');
       return;
     }
-    
+
     const row = new ActionRowBuilder()
       .addComponents(
         new ButtonBuilder()
@@ -1046,7 +1044,7 @@ async function sendPrivateMessageOffer() {
           .setStyle(ButtonStyle.Primary)
           .setEmoji('🎮')
       );
-    
+
     const embed = new EmbedBuilder()
       .setTitle('🌍 Start Your Private Session')
       .setDescription(
@@ -1066,7 +1064,7 @@ async function sendPrivateMessageOffer() {
       components: [row]
     });
 
-    
+
     console.log('Private thread creation message sent');
   } catch (error) {
     console.error('Error sending private message offer:', error);
@@ -1143,15 +1141,15 @@ async function handlePlayerCommands(message) {
       await message.reply("There's already an active quiz. Solve it first or wait for it to complete!");
       return;
     }
-    
+
     const args = message.content.split(' ').slice(1);
     const mapName = args.length > 0 ? args.join(' ') : null;
-    
+
     if (mapName) {
       const matchedMapName = Object.keys(MAPS).find(
         key => key.toLowerCase() === mapName.toLowerCase()
       );
-      
+
       await newLoc(message.channel, matchedMapName || mapName, message.author.id);
     } else {
       await newLoc(message.channel, null, message.author.id);
@@ -1162,7 +1160,7 @@ async function handlePlayerCommands(message) {
       .setTitle('Available Maps')
       .setDescription(mapNames.join('\n'))
       .setColor('#3498db');
-    
+
     await message.channel.send({ embeds: [mapsEmbed] });
   } else if (content === '!help') {
     const helpEmbed = new EmbedBuilder()

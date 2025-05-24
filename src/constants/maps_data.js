@@ -9,7 +9,8 @@ export const AVAILABLE_MAP_NAMES = [
   "A Balanced Asia",
   "A Balanced Africa",
   "A Balanced Oceania",
-  "Map With Broken Locations Only"
+  "Map With Broken Locations Only",
+  "50 50 Half Broken Locs"
 ];
 
 export const MAPS = {};
@@ -49,6 +50,9 @@ export const MAP_ALIASES = {
   "a balanced oceania": "A Balanced Oceania",
 
   mwblo: "map with broken locations only",
-  "map with broken locations only": "map with broken locations only"
+  "map with broken locations only": "map with broken locations only",
+
+  "hbl": "50 50 Half Broken Locs",
+  "50 50 half broken locs": "50 50 Half Broken Locs"
 
 };
