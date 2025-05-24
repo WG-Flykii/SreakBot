@@ -242,6 +242,10 @@ async function getCountryFromCoordinates(lat, lng) {
       address
     };
 
+    if (result.country === 'Unknown Location') {
+      console.log(`Unknown location for coordinates ${lat}, ${lng}.`);
+      return null;
+    }
     locationCache[cacheKey] = result;
     return result;
   } catch (error) {
@@ -299,15 +303,18 @@ async function preloadLocationCache() {
   for (const mapName of AVAILABLE_MAP_NAMES) {
     try {
       const locations = await fetchMapLocations(mapName);
-      for (const location of locations) {
+      for (let i = locations.length-1; i >= 0; i--) {
+        const location = locations[i];
         const cacheKey = `${location.lat.toFixed(6)},${location.lng.toFixed(6)}`;
-
         if (!locationCache[cacheKey]) {
           try {
             const locationInfo = await getCountryFromCoordinates(location.lat, location.lng);
-            if (locationInfo && locationInfo.country) {
-              locationCache[cacheKey] = locationInfo;
+            if (!locationInfo) {
+              console.log(`Unknown location for coordinates ${location.lat}, ${location.lng}. Deleting from map ${mapName}.`);
+              mapCache[MAPS[mapName]].splice(i, 1);
+              continue;
             }
+            locationCache[cacheKey] = locationInfo;
           } catch (e) {
             console.error(`Error preloading cache for ${cacheKey}:`, e);
           }
@@ -516,7 +523,8 @@ async function newLoc(channel, mapName = null, userId = null) {
       return;
     }
 
-    const location = mapLocations[Math.floor(Math.random() * mapLocations.length)];
+    const locationIndex = Math.floor(Math.random() * mapLocations.length);
+    const location = mapLocations[locationIndex];
     quizzesByChannel[channel.id].location = location;
 
     const embedUrl = getWorldGuessrEmbedUrl(location);
@@ -526,20 +534,22 @@ async function newLoc(channel, mapName = null, userId = null) {
       return;
     }
 
-    const [screenshotBuffer, locationInfo] = await Promise.all([
-      takeScreenshot(embedUrl, channel.id),
-      getCountryFromCoordinates(location.lat, location.lng)
-    ]);
+    while (!locationInfo || !locationInfo.country) {
+      var locationInfo = await getCountryFromCoordinates(location.lat, location.lng);
 
-    if (!locationInfo || !locationInfo.country) {
-      await loadingMessage.delete().catch(e => console.error("Couldn't delete loading message:", e));
-      await channel.send("Error fetching country for the location.");
-      return;
+      if (!locationInfo || !locationInfo.country) {
+        await loadingMessage.delete().catch(e => console.error("Couldn't delete loading message:", e));
+        await channel.send("Error fetching country for the location. Deleting it from the map and retrying...");
+        mapCache[MAPS[selectedMapName]].splice(locationIndex, 1);
+        newLoc(channel, mapName, userId);
+        return;
+      }
     }
+
+    const screenshotBuffer = await takeScreenshot(embedUrl, channel.id);
 
     quizzesByChannel[channel.id].country = locationInfo.country;
     quizzesByChannel[channel.id].subdivision = locationInfo.subdivision;
-
 
     const attachment = new AttachmentBuilder(screenshotBuffer, { name: 'quiz_location.jpg' });
 

@@ -49,10 +49,10 @@ export const MAP_ALIASES = {
   abo: "A Balanced Oceania",
   "a balanced oceania": "A Balanced Oceania",
 
-  mwblo: "map with broken locations only",
-  "map with broken locations only": "map with broken locations only",
+  mwblo: "Map With Broken Locations Only",
+  "map with broken locations only": "Map With Broken Locations Only",
 
-  "hbl": "50 50 Half Broken Locs",
+  hbl: "50 50 Half Broken Locs",
   "50 50 half broken locs": "50 50 Half Broken Locs"
 
 };
