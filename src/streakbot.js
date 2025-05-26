@@ -243,7 +243,6 @@ async function getCountryFromCoordinates(lat, lng) {
     };
 
     if (result.country === 'Unknown Location') {
-      console.log(`Unknown location for coordinates ${lat}, ${lng}.`);
       return null;
     }
     locationCache[cacheKey] = result;
@@ -304,12 +303,13 @@ async function preloadLocationCache() {
     try {
       const locations = await fetchMapLocations(mapName);
       for (let i = locations.length-1; i >= 0; i--) {
+        if (i >= locations.length) break; // To handle concurrent bad loc deletions
         const location = locations[i];
         const cacheKey = `${location.lat.toFixed(6)},${location.lng.toFixed(6)}`;
         if (!locationCache[cacheKey]) {
           try {
             const locationInfo = await getCountryFromCoordinates(location.lat, location.lng);
-            if (!locationInfo) {
+            if (!locationInfo || !locationInfo.country) {
               console.log(`Unknown location for coordinates ${location.lat}, ${location.lng}. Deleting from map ${mapName}.`);
               mapCache[MAPS[mapName]].splice(i, 1);
               continue;
@@ -534,8 +534,9 @@ async function newLoc(channel, mapName = null, userId = null) {
       return;
     }
 
+    let locationInfo;
     while (!locationInfo || !locationInfo.country) {
-      var locationInfo = await getCountryFromCoordinates(location.lat, location.lng);
+      locationInfo = await getCountryFromCoordinates(location.lat, location.lng);
 
       if (!locationInfo || !locationInfo.country) {
         await loadingMessage.delete().catch(e => console.error("Couldn't delete loading message:", e));
