@@ -1252,6 +1252,38 @@ client.on('messageCreate', async message => {
 
 });
 
+const isAllowed =
+    message.channel.id === QUIZ_CHANNEL_ID ||
+    (message.channel.isThread() && message.channel.parentId === QUIZ_CHANNEL_ID);
+
+  if (!isAllowed) return;
+
+  const [command, ...args] = message.content.trim().toLowerCase().split(/\s+/);
+  if (!["!map", "!locs", "!locations", "!distribution"].includes(command)) return;
+
+  const key = args.join(" ");
+  const map = mapImages[key];
+
+  if (!map) {
+    return message.reply("❌ Unknown map. Try `abe`, `abaf`, or full names like `a balanced europe`.");
+  }
+
+  const imagePath = path.join(__dirname, "locs_map_sb", map.file);
+
+  if (!fs.existsSync(imagePath)) {
+    return message.reply("❌ Image file not found.");
+  }
+
+  const file = new AttachmentBuilder(imagePath);
+  const embed = new EmbedBuilder()
+    .setTitle(`${map.name} - Distribution`)
+    .setImage(`attachment://${map.file}`)
+    .setColor(0x2ecc71);
+
+  await message.channel.send({ embeds: [embed], files: [file] });
+
+});
+
 function loadStreakData() {
   try {
     if (fs.existsSync(PB_STREAK_PATH)) {
