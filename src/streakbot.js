@@ -938,7 +938,7 @@ async function showLeaderboard(channel, inputName) {
   topPlayers.forEach((entry, index) => {
     const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
     const time = formatTime(entry.averageTime);
-    description += `${medal} **${entry.username}** - Streak: ${entry.streak} | Average Time: ${time}\n`;
+    description += `${medal} **${entry.username}** - Streak: ${entry.streak} | Average Time: ${time} | Date: ${Date(entry.lastUpdate).toISOString().split('T')[0]}\n`;
   });
 
   embed.setDescription(description);
@@ -1010,7 +1010,7 @@ async function showPersonalStats(message) {
     }
 
     description += `**${mapName}**\n`;
-    description += `Best Streak: ${stats.streak} | Time: ${formattedTime} | Rank: ${position}\n\n`;
+    description += `Best Streak: ${stats.streak} | Time: ${formattedTime} | Rank: ${position} | Date: ${Date(stats.lastUpdate).toISOString().split('T')[0]}\n\n`;
   }
 
   embed.setDescription(description);
