@@ -52,3 +52,23 @@ export const mapAliases = {
   "map with broken locations only": "map with broken locations only"
 
 };
+
+const mapImages = {
+  "a balanced africa": { name: "A Balanced Africa", file: "abaf_locations.png" },
+  "abaf": { name: "A Balanced Africa", file: "abaf_locations.png" },
+
+  "a balanced europe": { name: "A Balanced Europe", file: "abe_locations.png" },
+  "abe": { name: "A Balanced Europe", file: "abe_locations.png" },
+
+  "a balanced asia": { name: "A Balanced Asia", file: "aba_locations.png" },
+  "aba": { name: "A Balanced Asia", file: "aba_locations.png" },
+
+  "a balanced south america": { name: "A Balanced South America", file: "absa_locations.png" },
+  "absa": { name: "A Balanced South America", file: "absa_locations.png" },
+
+  "a balanced north america": { name: "A Balanced North America", file: "abna_locations.png" },
+  "abna": { name: "A Balanced North America", file: "abna_locations.png" },
+
+  "a balanced oceania": { name: "A Balanced Oceania", file: "abo_locations.png" },
+  "abo": { name: "A Balanced Oceania", file: "abo_locations.png" },
+};
