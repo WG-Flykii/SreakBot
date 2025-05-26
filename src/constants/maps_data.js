@@ -9,8 +9,8 @@ export const AVAILABLE_MAP_NAMES = [
   "A Balanced Asia",
   "A Balanced Africa",
   "A Balanced Oceania",
-  "Map With Broken Locations Only",
-  "50 50 Half Broken Locs"
+  /*"Map With Broken Locations Only",
+  "50 50 Half Broken Locs"*/
 ];
 
 export const MAPS = {};
@@ -49,10 +49,10 @@ export const MAP_ALIASES = {
   abo: "A Balanced Oceania",
   "a balanced oceania": "A Balanced Oceania",
 
-  mwblo: "Map With Broken Locations Only",
+  /*mwblo: "Map With Broken Locations Only",
   "map with broken locations only": "Map With Broken Locations Only",
 
   hbl: "50 50 Half Broken Locs",
-  "50 50 half broken locs": "50 50 Half Broken Locs"
+  "50 50 half broken locs": "50 50 Half Broken Locs"*/
 
 };
