@@ -30,7 +30,7 @@ const getQuizId = (action) => serverConfig[action.guild.id].quizId; // Main quiz
 const getAdminId = (action) => serverConfig[action.guild.id].adminId; // Channel to make sendPrivateMessageOffer
 
 import { COUNTRIES_DATA } from './constants/countries_data.js';
-import { AVAILABLE_MAP_NAMES, MAPS, MAP_ALIASES } from './constants/maps_data.js';
+import { AVAILABLE_MAP_NAMES, MAPS, MAP_ALIASES, MAP_IMAGES } from './constants/maps_data.js';
 
 // Initializes resources
 async function initializeResources() {
@@ -1127,6 +1127,7 @@ async function handlePlayerCommands(message) {
   const quizId = getQuizId(message);
   if (content.startsWith('!invite')) {
     if (message.mentions.users.size === 0) return;
+    const mentionedUser = message.mentions.users.first();
 
     if (!message.channel.isThread()) {
       await message.reply('❌ This command can only be used inside a thread.');
@@ -1246,6 +1247,27 @@ async function handlePlayerCommands(message) {
     }
 
     await showLeaderboard(message.channel, resolvedMapName);
+  } else if (content.startsWith('!map')) {
+    const key = message.content.split(' ').slice(1);
+    const map = MAP_IMAGES[key];
+
+    if (!map) {
+      return message.reply("❌ Unknown map. Try `abe`, `abaf`, or full names like `a balanced europe`.");
+    }
+
+    const imagePath = path.join(__dirname, "assets", map.file);
+
+    if (!fs.existsSync(imagePath)) {
+      return message.reply("❌ Image file not found.");
+    }
+
+    const file = new AttachmentBuilder(imagePath);
+    const embed = new EmbedBuilder()
+      .setTitle(`${map.name} - Distribution`)
+      .setImage(`attachment://${map.file}`)
+      .setColor(0x2ecc71);
+
+    await message.channel.send({ embeds: [embed], files: [file] });
   }
 }
 
