@@ -32,8 +32,6 @@ const getAdminId = (action) => serverConfig[action.guild.id].adminId; // Channel
 import { COUNTRIES_DATA } from './constants/countries_data.js';
 import { AVAILABLE_MAP_NAMES, MAPS, MAP_ALIASES } from './constants/maps_data.js';
 
-export
-
 // Initializes resources
 async function initializeResources() {
   try {
@@ -856,17 +854,14 @@ function scheduleThreadInactivityCheck(threadId) {
   }, 24 * 60 * 60 * 1000);
 }
 
-// TODO: will fix quizChannel later
 async function checkAllQuizThreadsForInactivity() {
   try {
-    quizChannels = [];
-    for (server of serverConfig) {
-      quizChannels.push(await client.channels.fetch(server.quizId));
-    };
-    if (quizChannels.length === 0) {
-      console.error('Quiz channel not found!');
-      return;
-    }
+    const quizChannels = await Promise.all(
+      Array.from(serverConfig).map(async ([serverId, config]) => {
+        const server = await client.guilds.fetch(serverId);
+        return await server.channels.fetch(config.quizId);
+      })
+    );
 
     quizChannels.forEach(async (quizChannel) => {
       const threads = await quizChannel.threads.fetchActive();

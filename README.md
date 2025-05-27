@@ -38,20 +38,32 @@ Compete solo or with friends, track your best streaks, and climb the leaderboard
 Create an `.env` file containing variables in this format:
 ```js
 BOT_TOKEN=
-CREATE_QUIZ_CHANNEL_ID=
-QUIZ_CHANNEL_ID=
-ADMIN_CHANNEL_ID=
+CLIENT_ID=
 ```
 - `BOT_TOKEN`: Your Discord bot token
-- `CREATE_QUIZ_CHANNEL_ID`: The channel where the "Create Private Thread" button will be posted
-  ![Button Offer Channel](./images/announcement_screenshot.png)
-- `QUIZ_CHANNEL_ID`: The main channel where quizzes are played and where threads will be created
-  ![Quiz Channel](./images/quiz_channel_screenshot.png)
-- `ADMIN_CHANNEL_ID`: The channel where admins can control the bot
-  ![Admin Channel](./images/admin_channel_screenshot.png)
+- `CLIENT_ID`: Identifies bot within Discord Developer portal
+
+---
+## **Setup**
+1. Invite the bot to your server
+2. Use `/create_channels` to create the channels for the bot (optional)
+3. Use `/setup` to set up the bot channels
+    - `create_quiz_channel`: The channel where the "Create Private Thread" button will be posted
+    ![Create Quiz Channel](./images/announcement_screenshot.png)
+    - `quiz_channel`: The main channel where quizzes are played and where threads will be created
+    ![Quiz Channel](./images/quiz_channel_screenshot.png)
+    - `admin_channel`: The channel where admins can control the bot
+    ![Admin Channel](./images/admin_channel_screenshot.png)
 
 ---
 ## **Development**
-Run `npm install`
-If you want to hot reload, use `npm run dev`
-If no hot reload is necessary, use `node src/streakbot.js`
+1. Run `npm install`.
+2. Register slash commands with `node src/register_commands.js`. Note that this does not need to be run often, so it is in a separate file.
+3. Run `node src/streakbot.js` to start the bot. If you want hot reload, use `npm run dev`.
+
+---
+## **Usage**
+1. Invite the bot to your server.
+2. Run `/create_channels` to create the channels for the bot (optional).
+3. Run `/setup` to configure the bot channels.
+4. Have fun with developing and playing!
