@@ -1249,13 +1249,13 @@ async function handlePlayerCommands(message) {
     await showLeaderboard(message.channel, resolvedMapName);
   } else if (content.startsWith('!map')) {
     const key = message.content.split(' ').slice(1);
-    const map = MAP_IMAGES[key];
+    const mapImage = MAP_IMAGES[key];
 
-    if (!map) {
+    if (!mapImage) {
       return message.reply("❌ Unknown map. Try `abe`, `abaf`, or full names like `a balanced europe`.");
     }
 
-    const imagePath = path.join(__dirname, "assets", map.file);
+    const imagePath = path.join(__dirname, "assets", mapImage);
 
     if (!fs.existsSync(imagePath)) {
       return message.reply("❌ Image file not found.");
@@ -1263,8 +1263,8 @@ async function handlePlayerCommands(message) {
 
     const file = new AttachmentBuilder(imagePath);
     const embed = new EmbedBuilder()
-      .setTitle(`${map.name} - Distribution`)
-      .setImage(`attachment://${map.file}`)
+      .setTitle(`${MAP_ALIASES[key]} - Distribution`)
+      .setImage(`attachment://${mapImage}`)
       .setColor(0x2ecc71);
 
     await message.channel.send({ embeds: [embed], files: [file] });

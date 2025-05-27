@@ -1,78 +1,58 @@
-export const AVAILABLE_MAP_NAMES = [
-  "A Balanced World",
-  "An Arbitrary World",
-  "A Pro World",
-  "An Arbitrary Rural World",
-  "A Balanced South America",
-  "A Balanced Europe",
-  "A Balanced North America",
-  "A Balanced Asia",
-  "A Balanced Africa",
-  "A Balanced Oceania",
-  /*"Map With Broken Locations Only",
-  "50 50 Half Broken Locs"*/
-];
+const MAP_DATA = {
+  "A Balanced World": {
+    "aliases": ["abw", "a balanced world"],
+    "distribution": "abaf_locations.webp"
+  },
+  "An Arbitrary World": {
+    "aliases": ["aaw", "an arbitrary world"],
+    "distribution": "aaw_locations.webp"
+  },
+  "A Pro World": {
+    "aliases": ["apw", "a pro world"],
+    "distribution": "apw_locations.webp"
+  },
+  "An Arbitrary Rural World": {
+    "aliases": ["aarw", "an arbitrary rural world"],
+    "distribution": "aarw_locations.webp"
+  },
+  "A Balanced South America": {
+    "aliases": ["absa", "a balanced south america"],
+    "distribution": "absa_locations.webp"
+  },
+  "A Balanced Europe": {
+    "aliases": ["abe", "a balanced europe"],
+    "distribution": "abe_locations.webp"
+  },
+  "A Balanced North America": {
+    "aliases": ["abna", "a balanced north america"],
+    "distribution": "abna_locations.webp"
+  },
+  "A Balanced Asia": {
+    "aliases": ["aba", "a balanced asia"],
+    "distribution": "aba_locations.webp"
+  },
+  "A Balanced Africa": {
+    "aliases": ["abf", "a balanced africa"],
+    "distribution": "abaf_locations.webp"
+  },
+  "A Balanced Oceania": {
+    "aliases": ["abo", "a balanced oceania"],
+    "distribution": "abo_locations.webp"
+  }
+};
+
+export const AVAILABLE_MAP_NAMES = Object.keys(MAP_DATA);
 
 export const MAPS = {};
 AVAILABLE_MAP_NAMES.forEach(name => {
   MAPS[name] = name.toLowerCase().replace(/\s+/g, '-');
 });
 
-export const MAP_ALIASES = {
-  abw: "A Balanced World",
-  "a balanced world": "A Balanced World",
-
-  aaw: "An Arbitrary World",
-  "an arbitrary world": "An Arbitrary World",
-
-  apw: "A Pro World",
-  "a pro world": "A Pro World",
-
-  aarw: "An Arbitrary Rural World",
-  "an arbitrary rural world": "An Arbitrary Rural World",
-
-  absa: "A Balanced South America",
-  "a balanced south america": "A Balanced South America",
-
-  abe: "A Balanced Europe",
-  "a balanced europe": "A Balanced Europe",
-
-  abna: "A Balanced North America",
-  "a balanced north america": "A Balanced North America",
-
-  aba: "A Balanced Asia",
-  "a balanced asia": "A Balanced Asia",
-
-  abf: "A Balanced Africa",
-  "a balanced africa": "A Balanced Africa",
-
-  abo: "A Balanced Oceania",
-  "a balanced oceania": "A Balanced Oceania",
-
-  /*mwblo: "Map With Broken Locations Only",
-  "map with broken locations only": "Map With Broken Locations Only",
-
-  hbl: "50 50 Half Broken Locs",
-  "50 50 half broken locs": "50 50 Half Broken Locs"*/
-
-};
-
-const mapImages = {
-  "a balanced africa": { name: "A Balanced Africa", file: "abaf_locations.png" },
-  "abaf": { name: "A Balanced Africa", file: "abaf_locations.png" },
-
-  "a balanced europe": { name: "A Balanced Europe", file: "abe_locations.png" },
-  "abe": { name: "A Balanced Europe", file: "abe_locations.png" },
-
-  "a balanced asia": { name: "A Balanced Asia", file: "aba_locations.png" },
-  "aba": { name: "A Balanced Asia", file: "aba_locations.png" },
-
-  "a balanced south america": { name: "A Balanced South America", file: "absa_locations.png" },
-  "absa": { name: "A Balanced South America", file: "absa_locations.png" },
-
-  "a balanced north america": { name: "A Balanced North America", file: "abna_locations.png" },
-  "abna": { name: "A Balanced North America", file: "abna_locations.png" },
-
-  "a balanced oceania": { name: "A Balanced Oceania", file: "abo_locations.png" },
-  "abo": { name: "A Balanced Oceania", file: "abo_locations.png" },
-};
+export const MAP_ALIASES = {};
+export const MAP_IMAGES = {};
+for (const [name, map] of Object.entries(MAP_DATA)) {
+  for (const alias of map.aliases) {
+    MAP_ALIASES[alias] = name;
+    MAP_IMAGES[alias] = map.distribution;
+  }
+}
