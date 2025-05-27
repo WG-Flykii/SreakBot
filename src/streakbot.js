@@ -1,6 +1,6 @@
 // Originally made by Flykii for the Worldguessr Discord. Join at https://discord.gg/nfebQwes6a !
 
-import { Client, GatewayIntentBits, Partials, ChannelType, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, PermissionFlagsBits, AttachmentBuilder } from 'discord.js';
+import { Client, GatewayIntentBits, Partials, ChannelType, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, AttachmentBuilder } from 'discord.js';
 import fs from 'fs';
 import axios from 'axios';
 import path from 'path';
@@ -17,14 +17,22 @@ const __dirname = dirname(__filename);
 
 const PB_STREAK_PATH = path.join(__dirname, 'data/pb_streak.json');
 const LB_STREAK_PATH = path.join(__dirname, 'data/lb_streak.json');
+const SERVER_CONFIG_PATH = path.join(__dirname, 'data/server_config.json');
+
+let personalBestStreaks = loadJsonFile(PB_STREAK_PATH, {});
+let leaderboardStreaks = loadJsonFile(LB_STREAK_PATH, {});
+let serverConfig = loadJsonFile(SERVER_CONFIG_PATH, {});
 
 const BOT_TOKEN = process.env.BOT_TOKEN; // Token for the discord bot
-const CREATE_QUIZ_CHANNEL_ID = process.env.CREATE_QUIZ_CHANNEL_ID // Channel to send sendPrivateMessageOffer
-const QUIZ_CHANNEL_ID = process.env.QUIZ_CHANNEL_ID; // Main quiz channel
-const ADMIN_CHANNEL_ID = process.env.ADMIN_CHANNEL_ID; // Channel to make sendPrivateMessageOffer
+
+const getCreateQuizId = (action) => serverConfig[action.guild.id].createQuizId; // Channel to send sendPrivateMessageOffer
+const getQuizId = (action) => serverConfig[action.guild.id].quizId; // Main quiz channel
+const getAdminId = (action) => serverConfig[action.guild.id].adminId; // Channel to make sendPrivateMessageOffer
 
 import { COUNTRIES_DATA } from './constants/countries_data.js';
-import { AVAILABLE_MAP_NAMES, MAPS, MAP_ALIASES } from './constants/maps_data.js'
+import { AVAILABLE_MAP_NAMES, MAPS, MAP_ALIASES } from './constants/maps_data.js';
+
+export
 
 // Initializes resources
 async function initializeResources() {
@@ -112,10 +120,6 @@ function saveJsonFile(filePath, data) {
     console.error(`Error saving to ${filePath}:`, error);
   }
 }
-
-let personalBestStreaks = loadJsonFile(PB_STREAK_PATH, {});
-let leaderboardStreaks = loadJsonFile(LB_STREAK_PATH, {});
-
 
 async function getBrowser() {
   if (isInitializingBrowser) {
@@ -467,14 +471,14 @@ function checkCountryGuess(guess, correctCountry) {
 }
 
 
-function isQuizChannel(channel) {
-  if (channel.id === QUIZ_CHANNEL_ID) return true;
-  if (channel.isThread() && channel.parentId === QUIZ_CHANNEL_ID) return true;
+function isQuizChannel(channel, quizId) {
+  if (channel.id === quizId) return true;
+  if (channel.isThread() && channel.parentId === quizId) return true;
   return false;
 }
 
-async function newLoc(channel, mapName = null, userId = null) {
-  if (!isQuizChannel(channel)) {
+async function newLoc(channel, quizId, mapName = null, userId = null) {
+  if (!isQuizChannel(channel, quizId)) {
     await channel.send("Quizzes can only be played in the designated channel or its threads.");
     return;
   }
@@ -542,7 +546,7 @@ async function newLoc(channel, mapName = null, userId = null) {
         await loadingMessage.delete().catch(e => console.error("Couldn't delete loading message:", e));
         await channel.send("Error fetching country for the location. Deleting it from the map and retrying...");
         mapCache[MAPS[selectedMapName]].splice(locationIndex, 1);
-        newLoc(channel, mapName, userId);
+        newLoc(channel, quizId, mapName, userId);
         return;
       }
     }
@@ -586,6 +590,7 @@ async function handleGuess(message, guess) {
   if (!quiz || quiz.solved) return;
 
   const subdivision = quiz.subdivision || 'Unknown subdivision';
+  const quizId = getQuizId(message);
 
   if (!quiz.participants.some(p => p.id === message.author.id)) {
     quiz.participants.push({ id: message.author.id, username: message.author.username });
@@ -701,7 +706,7 @@ async function handleGuess(message, guess) {
     };
 
     setTimeout(async () => {
-      await newLoc(message.channel, quiz.mapName, message.author.id);
+      await newLoc(message.channel, quizId, quiz.mapName, message.author.id);
     }, 300);
 
   } else {
@@ -771,7 +776,7 @@ async function createPrivateThread(interaction, userId) {
 
     await interaction.deferReply({ ephemeral: true });
 
-    const quizChannel = await client.channels.fetch(QUIZ_CHANNEL_ID);
+    const quizChannel = await client.channels.fetch(getQuizId(interaction));
     if (!quizChannel) {
       return interaction.editReply({ content: 'Quiz channel not found!', ephemeral: true });
     }
@@ -784,7 +789,7 @@ async function createPrivateThread(interaction, userId) {
     });
 
     await thread.members.add(userId);
-    const announcementChannel = await client.channels.fetch(ADMIN_CHANNEL_ID);
+    const announcementChannel = await client.channels.fetch(getAdminId(interaction));
 
     if (announcementChannel && announcementChannel.isTextBased()) {
       await announcementChannel.send(`🧵 A new private thread was created by <@${userId}>!\nJoin it here: <https://discord.com/channels/${interaction.guild.id}/${thread.id}>`);
@@ -851,19 +856,44 @@ function scheduleThreadInactivityCheck(threadId) {
   }, 24 * 60 * 60 * 1000);
 }
 
+// TODO: will fix quizChannel later
 async function checkAllQuizThreadsForInactivity() {
   try {
-    const quizChannel = await client.channels.fetch(QUIZ_CHANNEL_ID);
-    if (!quizChannel) {
+    quizChannels = [];
+    for (server of serverConfig) {
+      quizChannels.push(await client.channels.fetch(server.quizId));
+    };
+    if (quizChannels.length === 0) {
       console.error('Quiz channel not found!');
       return;
     }
 
-    const threads = await quizChannel.threads.fetchActive();
+    quizChannels.forEach(async (quizChannel) => {
+      const threads = await quizChannel.threads.fetchActive();
+      threads.threads.forEach(async (thread) => {
+        try {
+          if (thread.isThread() && !thread.archived) {
+            const lastMessage = await thread.messages.fetch({ limit: 1 });
+            const lastActivity = lastMessage.first()?.createdTimestamp || thread.createdTimestamp;
+            const now = Date.now();
+            const hoursInactive = (now - lastActivity) / (1000 * 60 * 60);
 
-    threads.threads.forEach(async (thread) => {
-      try {
-        if (thread.isThread() && !thread.archived) {
+            if (hoursInactive >= 24) {
+              await thread.delete(`Thread inactive for over 24h`);
+              console.log(`Deleted inactive thread: ${thread.name}`);
+            } else {
+              scheduleThreadInactivityCheck(thread.id);
+            }
+          }
+        } catch (err) {
+          console.error(`Error checking thread ${thread.id}:`, err);
+        }
+      });
+
+      const archivedThreads = await quizChannel.threads.fetchArchived();
+
+      archivedThreads.threads.forEach(async (thread) => {
+        try {
           const lastMessage = await thread.messages.fetch({ limit: 1 });
           const lastActivity = lastMessage.first()?.createdTimestamp || thread.createdTimestamp;
           const now = Date.now();
@@ -872,31 +902,11 @@ async function checkAllQuizThreadsForInactivity() {
           if (hoursInactive >= 24) {
             await thread.delete(`Thread inactive for over 24h`);
             console.log(`Deleted inactive thread: ${thread.name}`);
-          } else {
-            scheduleThreadInactivityCheck(thread.id);
           }
+        } catch (err) {
+          console.error(`Error checking archived thread ${thread.id}:`, err);
         }
-      } catch (err) {
-        console.error(`Error checking thread ${thread.id}:`, err);
-      }
-    });
-
-    const archivedThreads = await quizChannel.threads.fetchArchived();
-
-    archivedThreads.threads.forEach(async (thread) => {
-      try {
-        const lastMessage = await thread.messages.fetch({ limit: 1 });
-        const lastActivity = lastMessage.first()?.createdTimestamp || thread.createdTimestamp;
-        const now = Date.now();
-        const hoursInactive = (now - lastActivity) / (1000 * 60 * 60);
-
-        if (hoursInactive >= 24) {
-          await thread.delete(`Thread inactive for over 24h`);
-          console.log(`Deleted inactive thread: ${thread.name}`);
-        }
-      } catch (err) {
-        console.error(`Error checking archived thread ${thread.id}:`, err);
-      }
+      });
     });
   } catch (error) {
     console.error('Error checking all quiz threads:', error);
@@ -1025,6 +1035,40 @@ client.on('interactionCreate', async (interaction) => {
     console.log('Button clicked:', interaction.customId);
     await createPrivateThread(interaction, interaction.user.id);
   }
+
+  if (interaction.commandName == 'setup') {
+    const guild = interaction.guild.id;
+    const createQuizId = interaction.options.getChannel('create_quiz_channel').id;
+    const quizId = interaction.options.getChannel('quiz_channel').id;
+    const adminId = interaction.options.getChannel('admin_channel').id;
+
+    serverConfig[guild] = { createQuizId, quizId, adminId };
+    saveJsonFile(SERVER_CONFIG_PATH, serverConfig);
+
+    await interaction.reply({ content: `Finished setting up StreakBot!`, ephemeral: true });
+  }
+
+  if (interaction.commandName == 'create_channels') {
+    const guild = interaction.guild;
+
+    // Create StreakBot category
+    const category = await guild.channels.create({
+      name: 'StreakBot',
+      type: ChannelType.GuildCategory,
+    });
+
+    // Create channels under category
+    const channels = ['create-quiz', 'streakbot', 'bot-admin'];
+    for (const channel of channels) {
+      await guild.channels.create({
+        name: channel,
+        type: ChannelType.GuildText,
+        parent: category.id,
+      });
+    }
+
+    await interaction.reply({ content: `Finished setting up channels!`, ephemeral: true });
+  }
 });
 
 client.once('ready', async () => {
@@ -1039,9 +1083,9 @@ client.once('ready', async () => {
 
 });
 
-async function sendPrivateMessageOffer() {
+async function sendPrivateMessageOffer(createQuizId) {
   try {
-    const channel = await client.channels.fetch(CREATE_QUIZ_CHANNEL_ID);
+    const channel = await client.channels.fetch(createQuizId);
     if (!channel) {
       console.error('Quiz channel not found');
       return;
@@ -1085,6 +1129,7 @@ async function sendPrivateMessageOffer() {
 // Handles all commands of players
 async function handlePlayerCommands(message) {
   const content = message.content.trim().toLowerCase();
+  const quizId = getQuizId(message);
   if (content.startsWith('!invite')) {
     if (message.mentions.users.size === 0) return;
 
@@ -1161,9 +1206,9 @@ async function handlePlayerCommands(message) {
         key => key.toLowerCase() === mapName.toLowerCase()
       );
 
-      await newLoc(message.channel, matchedMapName || mapName, message.author.id);
+      await newLoc(message.channel, quizId, matchedMapName || mapName, message.author.id);
     } else {
-      await newLoc(message.channel, null, message.author.id);
+      await newLoc(message.channel, quizId, null, message.author.id);
     }
   } else if (content === '!maps') {
     const mapNames = Object.keys(MAPS);
@@ -1212,8 +1257,9 @@ async function handlePlayerCommands(message) {
 // Handles all comands of admins
 async function handleAdminCommands(message) {
   const content = message.content.trim().toLowerCase();
+  const createQuizId = getCreateQuizId(message);
   if (content === '!private_msg') {
-    await sendPrivateMessageOffer();
+    await sendPrivateMessageOffer(createQuizId);
     await message.reply('Private thread creation message sent to the quiz channel!');
   } else if (content === "!help_admin") {
     const helpEmbed = new EmbedBuilder()
@@ -1231,8 +1277,8 @@ async function handleAdminCommands(message) {
 // Listens to any potential command
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
-  if (message.channel.id === ADMIN_CHANNEL_ID) handleAdminCommands(message);
-  else if (isQuizChannel(message.channel)) handlePlayerCommands(message);
+  if (message.channel.id === getAdminId(message)) handleAdminCommands(message);
+  else if (isQuizChannel(message.channel, getQuizId(message))) handlePlayerCommands(message);
 });
 
 function initializeThreadCleanup() {
