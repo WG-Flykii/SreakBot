@@ -29,7 +29,7 @@ const getCreateQuizId = (action) => serverConfig[action.guild.id].createQuizId; 
 const getQuizId = (action) => serverConfig[action.guild.id].quizId; // Main quiz channel
 const getAdminId = (action) => serverConfig[action.guild.id].adminId; // Channel to make sendPrivateMessageOffer
 
-import { COUNTRIES_DATA } from './constants/countries_data.js';
+import { COUNTRIES, COUNTRY_LOOKUP } from './constants/countries_data.js';
 import { AVAILABLE_MAP_NAMES, MAPS, MAP_ALIASES, MAP_IMAGES } from './constants/maps_data.js';
 
 // Initializes resources
@@ -75,22 +75,6 @@ const client = new Client({
   ],
   partials: [Partials.Channel]
 });
-
-const COUNTRIES = {};
-
-Object.keys(COUNTRIES_DATA).forEach(country => {
-    COUNTRIES[country] = COUNTRIES_DATA[country];
-});
-
-const COUNTRY_LOOKUP = {};
-Object.keys(COUNTRIES).forEach(country => {
-  COUNTRY_LOOKUP[country.toLowerCase()] = country;
-  COUNTRIES[country].aliases.forEach(alias => {
-    COUNTRY_LOOKUP[alias.toLowerCase()] = country;
-  });
-});
-
-
 
 function loadJsonFile(filePath, defaultValue = {}) {
   try {
@@ -1194,7 +1178,7 @@ async function handlePlayerCommands(message) {
       return;
     }
 
-    const args = message.content.split(' ').slice(1);
+    const args = message.content.split(' ').splice(1);
     const mapName = args.length > 0 ? args.join(' ') : null;
 
     if (mapName) {
@@ -1247,8 +1231,8 @@ async function handlePlayerCommands(message) {
     }
 
     await showLeaderboard(message.channel, resolvedMapName);
-  } else if (content.startsWith('!map')) {
-    const key = message.content.split(' ').slice(1);
+  } else if (["!map", "!locs", "!locations", "!distribution"].includes(content.split(' ')[0])) {
+    const key = message.content.split(' ').splice(1);
     const mapImage = MAP_IMAGES[key];
 
     if (!mapImage) {

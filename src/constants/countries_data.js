@@ -1,5 +1,5 @@
 // List of aliases for every countries and terrritories
-export const COUNTRIES_DATA = {
+const COUNTRIES_DATA = {
     // #region Africa
     "angola": {
         "flag": "🇦🇴",
@@ -1051,3 +1051,16 @@ export const COUNTRIES_DATA = {
     }
     // #endregion
 }
+
+export const COUNTRIES = {};
+Object.keys(COUNTRIES_DATA).forEach(country => {
+    COUNTRIES[country] = COUNTRIES_DATA[country];
+});
+
+export const COUNTRY_LOOKUP = {};
+Object.keys(COUNTRIES).forEach(country => {
+  COUNTRY_LOOKUP[country.toLowerCase()] = country;
+  COUNTRIES[country].aliases.forEach(alias => {
+    COUNTRY_LOOKUP[alias.toLowerCase()] = country;
+  });
+});
