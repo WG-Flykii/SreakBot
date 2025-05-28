@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Streakbot for WG",
   "main": "src/streakbot.js",
+  "type": "module",
   "scripts": {
     "test": "npm test",
     "dev": "nodemon"
