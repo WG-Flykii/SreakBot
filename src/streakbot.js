@@ -32,6 +32,8 @@ const getAdminId = (action) => serverConfig[action.guild.id].adminId; // Channel
 import { COUNTRIES, COUNTRY_LOOKUP } from './constants/countries_data.js';
 import { AVAILABLE_MAP_NAMES, MAPS, MAP_ALIASES, MAP_IMAGES } from './constants/maps_data.js';
 
+const getDay = (date = null) => new Date(date).toISOString().split('T')[0];
+
 // Initializes resources
 async function initializeResources() {
   try {
@@ -97,6 +99,7 @@ function saveJsonFile(filePath, data) {
     if (!fs.existsSync(dirPath)) {
       fs.mkdirSync(dirPath, { recursive: true });
     }
+    
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
   } catch (error) {
     console.error(`Error saving to ${filePath}:`, error);
@@ -565,7 +568,7 @@ async function newLoc(channel, quizId, mapName = null, userId = null) {
 // If a guess is right, give info and call newLoc
 // If a guess is wrong, end the game and give info
 async function handleGuess(message, guess) {
-  if (!guess.toLowerCase().startsWith('!g ')) return;
+  if (!guess) return;
 
   const channelId = message.channel.id;
   const quiz = quizzesByChannel[channelId];
@@ -578,16 +581,10 @@ async function handleGuess(message, guess) {
     quiz.participants.push({ id: message.author.id, username: message.author.username });
   }
 
-  const parts = guess.trim().split(' ');
-  if (parts.length < 2) return;
-
-  const actualGuess = parts.slice(1).join(' ').trim();
-  if (!actualGuess) return;
-
   const correctCountry = quiz.country;
   if (!correctCountry) return;
 
-  const isCorrect = checkCountryGuess(actualGuess, correctCountry);
+  const isCorrect = checkCountryGuess(guess, correctCountry);
   const { lat, lng } = quiz.location;
 
   if (isCorrect) {
@@ -919,7 +916,7 @@ async function showLeaderboard(channel, inputName) {
   const embed = new EmbedBuilder()
     .setTitle(`🏆 ${mapName} - Leaderboard`)
     .setColor('#f1c40f')
-    .setFooter({ text: `Updated: ${new Date().toISOString().split('T')[0]}` });
+    .setFooter({ text: `Updated: ${getDay()}` });
 
   const topPlayers = mapLeaderboard.slice(0, 10);
 
@@ -927,7 +924,7 @@ async function showLeaderboard(channel, inputName) {
   topPlayers.forEach((entry, index) => {
     const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
     const time = formatTime(entry.averageTime);
-    description += `${medal} **${entry.username}** - Streak: ${entry.streak} | Average Time: ${time} | Date: ${new Date(entry.lastUpdate).toISOString().split('T')[0]}\n`;
+    description += `${medal} **${entry.username}** - Streak: ${entry.streak} | Average Time: ${time} | Date: ${getDay(entry.lastUpdate)}\n`;
   });
 
   embed.setDescription(description);
@@ -999,7 +996,7 @@ async function showPersonalStats(message) {
     }
 
     description += `**${mapName}**\n`;
-    description += `Best Streak: ${stats.streak} | Time: ${formattedTime} | Rank: ${position} | Date: ${new Date(stats.lastUpdate).toISOString().split('T')[0]}\n\n`;
+    description += `Best Streak: ${stats.streak} | Time: ${formattedTime} | Rank: ${position} | Date: ${getDay(stats.lastUpdate)}\n\n`;
   }
 
   embed.setDescription(description);
@@ -1108,8 +1105,9 @@ async function sendPrivateMessageOffer(createQuizId) {
 // Handles all commands of players
 async function handlePlayerCommands(message) {
   const content = message.content.trim().toLowerCase();
+  const [command, ...args] = content.split(' ');
   const quizId = getQuizId(message);
-  if (content.startsWith('!invite')) {
+  if (command === '!invite') {
     if (message.mentions.users.size === 0) return;
     const mentionedUser = message.mentions.users.first();
 
@@ -1125,7 +1123,7 @@ async function handlePlayerCommands(message) {
       console.error('Error inviting user:', error);
       await message.reply('❌ Failed to invite the user. Make sure I have the correct permissions.');
     }
-  } else if (content.startsWith('!kick')) {
+  } else if (command === '!kick') {
     if (message.mentions.users.size === 0) return;
 
     const mentionedUser = message.mentions.users.first();
@@ -1142,7 +1140,7 @@ async function handlePlayerCommands(message) {
       console.error('Error kicking user:', error);
       await message.reply('❌ Failed to kick the user. Make sure I have the correct permissions.');
     }
-  } else if (content === '!stop') {
+  } else if (command === '!stop') {
     const channelId = message.channel.id;
     const quiz = quizzesByChannel[channelId];
 
@@ -1170,15 +1168,13 @@ async function handlePlayerCommands(message) {
 
     delete quizzesByChannel[channelId];
     return;
-  } else if (content.startsWith('!g ')) {
-    await handleGuess(message, message.content);
-  } else if (content.startsWith('!play')) {
+  } else if (command === '!g') {
+    await handleGuess(message, args.join(' '));
+  } else if (command === '!play') {
     if (quizzesByChannel[message.channel.id] && !quizzesByChannel[message.channel.id].solved) {
       await message.reply("There's already an active quiz. Solve it first or wait for it to complete!");
       return;
     }
-
-    const args = message.content.split(' ').splice(1);
     const mapName = args.length > 0 ? args.join(' ') : null;
 
     if (mapName) {
@@ -1190,7 +1186,7 @@ async function handlePlayerCommands(message) {
     } else {
       await newLoc(message.channel, quizId, null, message.author.id);
     }
-  } else if (content === '!maps') {
+  } else if (command === '!maps') {
     const mapNames = Object.keys(MAPS);
     const mapsEmbed = new EmbedBuilder()
       .setTitle('Available Maps')
@@ -1198,7 +1194,7 @@ async function handlePlayerCommands(message) {
       .setColor('#3498db');
 
     await message.channel.send({ embeds: [mapsEmbed] });
-  } else if (content === '!help') {
+  } else if (command === '!help') {
     const helpEmbed = new EmbedBuilder()
       .setTitle('Bot Commands')
       .setDescription('Here are the available commands:')
@@ -1215,13 +1211,11 @@ async function handlePlayerCommands(message) {
       )
       .setColor('#3498db');
     await message.channel.send({ embeds: [helpEmbed] });
-  } else if (content.startsWith('!stats')) {
+  } else if (command === '!stats') {
     await showPersonalStats(message);
-  } else if (content.startsWith('!leaderboard')) {
-    const input = message.content.substring('!leaderboard'.length).trim().toLowerCase();
-    const resolvedMapName = MAP_ALIASES[input] || AVAILABLE_MAP_NAMES.find(
-      name => name.toLowerCase() === input
-    );
+  } else if (command === '!leaderboard') {
+    const input = args.join(' ').toLowerCase();
+    const resolvedMapName = MAP_ALIASES[input];
 
     if (!resolvedMapName) {
       return message.reply({
@@ -1231,9 +1225,8 @@ async function handlePlayerCommands(message) {
     }
 
     await showLeaderboard(message.channel, resolvedMapName);
-  } else if (["!map", "!locs", "!locations", "!distribution"].includes(content.split(' ')[0])) {
-    const key = message.content.split(' ').splice(1);
-    const mapImage = MAP_IMAGES[key];
+  } else if (["!map", "!locs", "!locations", "!distribution"].includes(command)) {
+    const mapImage = MAP_IMAGES[args.join(' ')];
 
     if (!mapImage) {
       return message.reply("❌ Unknown map. Try `abe`, `abaf`, or full names like `a balanced europe`.");
@@ -1258,11 +1251,12 @@ async function handlePlayerCommands(message) {
 // Handles all comands of admins
 async function handleAdminCommands(message) {
   const content = message.content.trim().toLowerCase();
+  const command = content.split(' ')[0];
   const createQuizId = getCreateQuizId(message);
-  if (content === '!private_msg') {
+  if (command === '!private_msg') {
     await sendPrivateMessageOffer(createQuizId);
     await message.reply('Private thread creation message sent to the quiz channel!');
-  } else if (content === "!help_admin") {
+  } else if (command === "!help_admin") {
     const helpEmbed = new EmbedBuilder()
       .setTitle("Administrator bot commands")
       .setDescription("Here are all the available admin commands")
