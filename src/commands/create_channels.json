@@ -1,6 +1,6 @@
 {
 	"name": "create_channels",
 	"type": 1,
-	"default_member_permissions": "8",
+	"default_member_permissions": 8,
 	"description": "Automatically creates channels for you. You may change the category and channel names later."
 }

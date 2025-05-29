@@ -30,7 +30,8 @@ const getQuizId = (action) => serverConfig[action.guild.id].quizId; // Main quiz
 const getAdminId = (action) => serverConfig[action.guild.id].adminId; // Channel to make sendPrivateMessageOffer
 
 import { COUNTRIES, COUNTRY_LOOKUP } from './constants/countries_data.js';
-import { AVAILABLE_MAP_NAMES, MAPS, MAP_ALIASES, MAP_IMAGES } from './constants/maps_data.js';
+import { mapData, mapNames, maps, mapAliases, mapImages, refreshMaps } from './constants/maps_data.js';
+import { loadJsonFile, saveJsonFile } from './utils.js';
 
 const getDay = (date = null) => new Date(date).toISOString().split('T')[0];
 
@@ -57,7 +58,7 @@ async function initializeResources() {
 
 function resolveMapName(input) {
   if (!input) return null;
-  return MAP_ALIASES[input.toLowerCase()] || null;
+  return mapAliases[input.toLowerCase()] || null;
 }
 
 let browserPool = null;
@@ -77,34 +78,6 @@ const client = new Client({
   ],
   partials: [Partials.Channel]
 });
-
-function loadJsonFile(filePath, defaultValue = {}) {
-  try {
-    if (fs.existsSync(filePath)) {
-      const data = fs.readFileSync(filePath, 'utf8');
-      return JSON.parse(data);
-    }
-    console.log(`File ${filePath} not found, creating new one`);
-    saveJsonFile(filePath, defaultValue);
-    return defaultValue;
-  } catch (error) {
-    console.error(`Error loading file ${filePath}:`, error);
-    return defaultValue;
-  }
-}
-
-function saveJsonFile(filePath, data) {
-  try {
-    const dirPath = path.dirname(filePath);
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath, { recursive: true });
-    }
-    
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
-  } catch (error) {
-    console.error(`Error saving to ${filePath}:`, error);
-  }
-}
 
 async function getBrowser() {
   if (isInitializingBrowser) {
@@ -226,14 +199,13 @@ async function getCountryFromCoordinates(lat, lng) {
     }
 
     const result = {
-      country: country?.toLowerCase() || 'Unknown Location',
+      country: country?.toLowerCase() || 'Unknown location',
       subdivision: subdivision || 'Unknown subdivision',
       address
     };
 
-    if (result.country === 'Unknown Location') {
-      return null;
-    }
+    if (result.country === 'Unknown location') return null;
+
     locationCache[cacheKey] = result;
     return result;
   } catch (error) {
@@ -266,7 +238,7 @@ function getWorldGuessrEmbedUrl(location) {
 
 
 async function fetchMapLocations(mapName) {
-  const slug = MAPS[mapName];
+  const slug = maps[mapName];
   if (!slug) throw new Error(`Unknown map name: ${mapName}`);
 
   const url = `https://api.worldguessr.com/mapLocations/${slug}`;
@@ -288,7 +260,7 @@ async function fetchMapLocations(mapName) {
 async function preloadLocationCache() {
   console.log("Preloading known locations...");
 
-  for (const mapName of AVAILABLE_MAP_NAMES) {
+  for (const mapName of mapNames) {
     try {
       const locations = await fetchMapLocations(mapName);
       for (let i = locations.length-1; i >= 0; i--) {
@@ -300,7 +272,7 @@ async function preloadLocationCache() {
             const locationInfo = await getCountryFromCoordinates(location.lat, location.lng);
             if (!locationInfo || !locationInfo.country) {
               console.log(`Unknown location for coordinates ${location.lat}, ${location.lng}. Deleting from map ${mapName}.`);
-              mapCache[MAPS[mapName]].splice(i, 1);
+              mapCache[maps[mapName]].splice(i, 1);
               continue;
             }
             locationCache[cacheKey] = locationInfo;
@@ -469,7 +441,6 @@ async function newLoc(channel, quizId, mapName = null, userId = null) {
   }
 
   try {
-    const mapNames = AVAILABLE_MAP_NAMES;
     let selectedMapName = null;
 
     if (mapName) {
@@ -530,7 +501,7 @@ async function newLoc(channel, quizId, mapName = null, userId = null) {
       if (!locationInfo || !locationInfo.country) {
         await loadingMessage.delete().catch(e => console.error("Couldn't delete loading message:", e));
         await channel.send("Error fetching country for the location. Deleting it from the map and retrying...");
-        mapCache[MAPS[selectedMapName]].splice(locationIndex, 1);
+        mapCache[maps[selectedMapName]].splice(locationIndex, 1);
         newLoc(channel, quizId, mapName, userId);
         return;
       }
@@ -583,6 +554,9 @@ async function handleGuess(message, guess) {
 
   const correctCountry = quiz.country;
   if (!correctCountry) return;
+
+  const countryInfo = COUNTRIES[correctCountry.toLowerCase()] ||
+      COUNTRIES[normalizeCountry(correctCountry.toLowerCase())];
 
   const isCorrect = checkCountryGuess(guess, correctCountry);
   const { lat, lng } = quiz.location;
@@ -647,8 +621,6 @@ async function handleGuess(message, guess) {
     saveJsonFile(PB_STREAK_PATH, personalBestStreaks);
     saveJsonFile(LB_STREAK_PATH, leaderboardStreaks);
 
-    const countryInfo = COUNTRIES[correctCountry.toLowerCase()] ||
-      COUNTRIES[normalizeCountry(correctCountry.toLowerCase())];
     const flag = countryInfo?.flag || '';
 
     await message.reply({
@@ -689,8 +661,6 @@ async function handleGuess(message, guess) {
     }, 300);
 
   } else {
-    const countryInfo = COUNTRIES[correctCountry.toLowerCase()] ||
-      COUNTRIES[normalizeCountry(correctCountry.toLowerCase())];
     const flag = countryInfo?.flag || '';
 
     const quizTime = Date.now() - quiz.startTime;
@@ -890,11 +860,11 @@ async function checkAllQuizThreadsForInactivity() {
 }
 
 async function showLeaderboard(channel, inputName) {
-  const mapNames = AVAILABLE_MAP_NAMES;
+  const mapNames = mapNames;
 
   const normalizedInput = inputName?.toLowerCase();
 
-  let mapName = MAP_ALIASES[normalizedInput] || inputName;
+  let mapName = mapAliases[normalizedInput] || inputName;
 
   if (!mapName || !mapNames.includes(mapName)) {
     const similarMap = mapNames.find(m => m.toLowerCase() === normalizedInput);
@@ -1012,45 +982,86 @@ client.on('interactionCreate', async (interaction) => {
     await createPrivateThread(interaction, interaction.user.id);
   }
 
-  if (interaction.commandName == 'setup') {
-    const guild = interaction.guild.id;
-    const createQuizId = interaction.options.getChannel('create_quiz_channel').id;
-    const quizId = interaction.options.getChannel('quiz_channel').id;
-    const adminId = interaction.options.getChannel('admin_channel').id;
+  const guild = interaction.guild;
+  switch (interaction.commandName) {
+    case 'setup':
+      const createQuizId = interaction.options.getChannel('create_quiz_channel').id;
+      const quizId = interaction.options.getChannel('quiz_channel').id;
+      const adminId = interaction.options.getChannel('admin_channel').id;
 
-    serverConfig[guild] = { createQuizId, quizId, adminId };
-    saveJsonFile(SERVER_CONFIG_PATH, serverConfig);
+      serverConfig[guild] = { createQuizId, quizId, adminId };
+      saveJsonFile(SERVER_CONFIG_PATH, serverConfig);
 
-    await interaction.reply({ content: `Finished setting up StreakBot!`, ephemeral: true });
-  }
+      await interaction.reply({ content: `Finished setting up StreakBot!`, ephemeral: true});
+      break;
 
-  if (interaction.commandName == 'create_channels') {
-    const guild = interaction.guild;
-
-    // Create StreakBot category
-    const category = await guild.channels.create({
-      name: 'StreakBot',
-      type: ChannelType.GuildCategory,
-    });
-
-    // Create channels under category
-    const channels = ['create-quiz', 'streakbot', 'bot-admin'];
-    for (const channel of channels) {
-      await guild.channels.create({
-        name: channel,
-        type: ChannelType.GuildText,
-        parent: category.id,
+    case 'create_channels':
+      // Create StreakBot category
+      const category = await guild.channels.create({
+        name: 'StreakBot',
+        type: ChannelType.GuildCategory,
       });
-    }
 
-    await interaction.reply({ content: `Finished setting up channels!`, ephemeral: true });
+      // Create channels under category
+      const channels = ['create-quiz', 'streakbot', 'bot-admin'];
+      for (const channel of channels) {
+        await guild.channels.create({
+          name: channel,
+          type: ChannelType.GuildText,
+          parent: category.id,
+        });
+      }
+
+      await interaction.reply({ content: `Finished setting up channels!`, ephemeral: true});
+      break;
+
+    case 'add_map':
+      if (interaction.channel.id !== getAdminId(interaction)) {
+        await interaction.reply({ content: 'This command can only be used within the admin channel.'});
+        return;
+      }
+
+      const addName = interaction.options.getString('name');
+      const aliases = interaction.options.getString('aliases').split(',').map(item => item.trim());
+      const distribution = interaction.options.getAttachment('distribution');
+
+      if (distribution) {
+        const imagePath = path.join(__dirname, 'assets', distribution.name);
+        mapData[addName] = { aliases: aliases, distribution: distribution.name };
+        await distribution.save(imagePath);
+      } else {
+        mapData[addName] = { aliases: aliases };
+      }
+
+      saveJsonFile(path.join(__dirname, 'constants/maps_data.json'), mapData);
+      refreshMaps();
+
+      await interaction.reply({ content: `Finished adding map "${addName}"!`});
+      break;
+
+    case 'delete_map':
+      if (interaction.channel.id !== getAdminId(interaction)) {
+        await interaction.reply({ content: 'This command can only be used within the admin channel.'});
+        return;
+      }
+
+      const deleteName = mapAliases[interaction.options.getString('name')];
+      if (!(deleteName in mapData)) {
+        interaction.reply(`No map found named "${deleteName}"`);
+        return;
+      }
+      delete mapData[deleteName];
+      saveJsonFile(path.join(__dirname, 'constants/maps_data.json'), mapData);
+      refreshMaps();
+
+      await interaction.reply({ content: `Finished deleting map "${deleteName}"!`});
+      break;
   }
 });
 
 client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}!`);
   initializeThreadCleanup();
-  await initializeResources();
   try {
     await initializeResources();
   } catch (error) {
@@ -1107,165 +1118,189 @@ async function handlePlayerCommands(message) {
   const content = message.content.trim().toLowerCase();
   const [command, ...args] = content.split(' ');
   const quizId = getQuizId(message);
-  if (command === '!invite') {
-    if (message.mentions.users.size === 0) return;
-    const mentionedUser = message.mentions.users.first();
+  let mentionedUser;
+  switch (command) {
+    case '!invite':
+      if (message.mentions.users.size === 0) return;
+      mentionedUser = message.mentions.users.first();
 
-    if (!message.channel.isThread()) {
-      await message.reply('❌ This command can only be used inside a thread.');
-      return;
-    }
+      if (!message.channel.isThread()) {
+        await message.reply('❌ This command can only be used inside a thread.');
+        return;
+      }
 
-    try {
-      await message.channel.members.add(mentionedUser.id);
-      await message.reply(`✅ Successfully invited ${mentionedUser.username} to the thread.`);
-    } catch (error) {
-      console.error('Error inviting user:', error);
-      await message.reply('❌ Failed to invite the user. Make sure I have the correct permissions.');
-    }
-  } else if (command === '!kick') {
-    if (message.mentions.users.size === 0) return;
+      try {
+        await message.channel.members.add(mentionedUser.id);
+        await message.reply(`✅ Successfully invited ${mentionedUser.username} to the thread.`);
+      } catch (error) {
+        console.error('Error inviting user:', error);
+        await message.reply('❌ Failed to invite the user. Make sure I have the correct permissions.');
+      }
+      break;
 
-    const mentionedUser = message.mentions.users.first();
+    case '!kick':
+      if (message.mentions.users.size === 0) return;
 
-    if (!message.channel.isThread()) {
-      await message.reply('❌ This command can only be used inside a thread.');
-      return;
-    }
+      mentionedUser = message.mentions.users.first();
 
-    try {
-      await message.channel.members.remove(mentionedUser.id);
-      await message.reply(`✅ Successfully kicked ${mentionedUser.username} from the thread.`);
-    } catch (error) {
-      console.error('Error kicking user:', error);
-      await message.reply('❌ Failed to kick the user. Make sure I have the correct permissions.');
-    }
-  } else if (command === '!stop') {
-    const channelId = message.channel.id;
-    const quiz = quizzesByChannel[channelId];
+      if (!message.channel.isThread()) {
+        await message.reply('❌ This command can only be used inside a thread.');
+        return;
+      }
 
-    if (!quiz || quiz.solved) {
-      return message.reply("❌ There's no ongoing game to stop in this channel.");
-    }
+      try {
+        await message.channel.members.remove(mentionedUser.id);
+        await message.reply(`✅ Successfully kicked ${mentionedUser.username} from the thread.`);
+      } catch (error) {
+        console.error('Error kicking user:', error);
+        await message.reply('❌ Failed to kick the user. Make sure I have the correct permissions.');
+      }
+      break;
+      
+    case '!stop':
+      const channelId = message.channel.id;
+      const quiz = quizzesByChannel[channelId];
 
-    quiz.solved = true;
+      if (!quiz || quiz.solved) {
+        return message.reply("❌ There's no ongoing game to stop in this channel.");
+      }
 
-    await message.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle('🛑 Game Stopped')
-          .setDescription(`The current game has been stopped manually.`)
-          .addFields(
-            { name: 'Final Streak', value: `${quiz.currentStreak}`, inline: true },
-            {
-              name: "Exact Location",
-              value: `[View on Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${quiz.location.lat},${quiz.location.lng}&heading=0&pitch=0)`
-            }
-          )
-          .setColor('#f39c12')
-      ]
-    });
+      quiz.solved = true;
 
-    delete quizzesByChannel[channelId];
-    return;
-  } else if (command === '!g') {
-    await handleGuess(message, args.join(' '));
-  } else if (command === '!play') {
-    if (quizzesByChannel[message.channel.id] && !quizzesByChannel[message.channel.id].solved) {
-      await message.reply("There's already an active quiz. Solve it first or wait for it to complete!");
-      return;
-    }
-    const mapName = args.length > 0 ? args.join(' ') : null;
-
-    if (mapName) {
-      const matchedMapName = Object.keys(MAPS).find(
-        key => key.toLowerCase() === mapName.toLowerCase()
-      );
-
-      await newLoc(message.channel, quizId, matchedMapName || mapName, message.author.id);
-    } else {
-      await newLoc(message.channel, quizId, null, message.author.id);
-    }
-  } else if (command === '!maps') {
-    const mapNames = Object.keys(MAPS);
-    const mapsEmbed = new EmbedBuilder()
-      .setTitle('Available Maps')
-      .setDescription(mapNames.join('\n'))
-      .setColor('#3498db');
-
-    await message.channel.send({ embeds: [mapsEmbed] });
-  } else if (command === '!help') {
-    const helpEmbed = new EmbedBuilder()
-      .setTitle('Bot Commands')
-      .setDescription('Here are the available commands:')
-      .addFields(
-        { name: '!help', value: 'Show the help message' },
-        { name: '!play', value: 'Start a new quiz with a random map' },
-        { name: '!play <map>', value: 'Start a new quiz with the specified map' },
-        { name: '!g <country>', value: 'Submit your guess for the current quiz' },
-        { name: '!maps', value: 'Show all available maps' },
-        { name: '!stats', value: 'Show your personal stats and records' },
-        { name: '!leaderboard <map>', value: 'Show the leaderboard for a specific map' },
-        { name: '!invite @<user>', value: 'Invite a user to your private thread *(only works in threads)*' },
-        { name: '!kick @<user>', value: 'Kick a user from your private thread *(only works in threads)*' }
-      )
-      .setColor('#3498db');
-    await message.channel.send({ embeds: [helpEmbed] });
-  } else if (command === '!stats') {
-    await showPersonalStats(message);
-  } else if (command === '!leaderboard') {
-    const input = args.join(' ').toLowerCase();
-    const resolvedMapName = MAP_ALIASES[input];
-
-    if (!resolvedMapName) {
-      return message.reply({
-        content: `Unknown map: \`${input}\`. Try one of: ${AVAILABLE_MAP_NAMES.join(', ')}`,
-        ephemeral: true
+      await message.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle('🛑 Game Stopped')
+            .setDescription(`The current game has been stopped manually.`)
+            .addFields(
+              { name: 'Final Streak', value: `${quiz.currentStreak}`, inline: true },
+              {
+                name: "Exact Location",
+                value: `[View on Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${quiz.location.lat},${quiz.location.lng}&heading=0&pitch=0)`
+              }
+            )
+            .setColor('#f39c12')
+        ]
       });
-    }
 
-    await showLeaderboard(message.channel, resolvedMapName);
-  } else if (["!map", "!locs", "!locations", "!distribution"].includes(command)) {
-    const mapImage = MAP_IMAGES[args.join(' ')];
+      delete quizzesByChannel[channelId];
+      break;
+    
+    case '!g':
+      await handleGuess(message, args.join(' '));
+      break;
+    
+    case '!play':
+      if (quizzesByChannel[message.channel.id] && !quizzesByChannel[message.channel.id].solved) {
+        await message.reply("There's already an active quiz. Solve it first or wait for it to complete!");
+        return;
+      }
+      const mapName = args.length > 0 ? args.join(' ') : null;
 
-    if (!mapImage) {
-      return message.reply("❌ Unknown map. Try `abe`, `abaf`, or full names like `a balanced europe`.");
-    }
+      if (mapName) {
+        const matchedMapName = Object.keys(maps).find(
+          key => key.toLowerCase() === mapName.toLowerCase()
+        );
 
-    const imagePath = path.join(__dirname, "assets", mapImage);
+        await newLoc(message.channel, quizId, matchedMapName || mapName, message.author.id);
+      } else {
+        await newLoc(message.channel, quizId, null, message.author.id);
+      }
+      break;
+    
+    case '!maps':
+      const mapNames = Object.keys(maps);
+      const mapsEmbed = new EmbedBuilder()
+        .setTitle('Available Maps')
+        .setDescription(mapNames.join('\n'))
+        .setColor('#3498db');
 
-    if (!fs.existsSync(imagePath)) {
-      return message.reply("❌ Image file not found.");
-    }
+      await message.channel.send({ embeds: [mapsEmbed] });
+      break;
+    
+    case '!help':
+      const helpEmbed = new EmbedBuilder()
+        .setTitle('Bot Commands')
+        .setDescription('Here are the available commands:')
+        .addFields(
+          { name: '!help', value: 'Show the help message' },
+          { name: '!play', value: 'Start a new quiz with a random map' },
+          { name: '!play <map>', value: 'Start a new quiz with the specified map' },
+          { name: '!g <country>', value: 'Submit your guess for the current quiz' },
+          { name: '!maps', value: 'Show all available maps' },
+          { name: '!stats', value: 'Show your personal stats and records' },
+          { name: '!leaderboard <map>', value: 'Show the leaderboard for a specific map' },
+          { name: '!invite @<user>', value: 'Invite a user to your private thread *(only works in threads)*' },
+          { name: '!kick @<user>', value: 'Kick a user from your private thread *(only works in threads)*' }
+        )
+        .setColor('#3498db');
+      await message.channel.send({ embeds: [helpEmbed] });
+      break;
+    
+    case '!stats':
+      await showPersonalStats(message);
+      break;
+    
+    case '!leaderboard':
+      const input = args.join(' ').toLowerCase();
+      const resolvedMapName = mapAliases[input];
 
-    const file = new AttachmentBuilder(imagePath);
-    const embed = new EmbedBuilder()
-      .setTitle(`${MAP_ALIASES[key]} - Distribution`)
-      .setImage(`attachment://${mapImage}`)
-      .setColor(0x2ecc71);
+      if (!resolvedMapName) {
+        return message.reply({
+          content: `Unknown map: \`${input}\`. Try one of: ${mapNames.join(', ')}`,
+          ephemeral: true
+        });
+      }
 
-    await message.channel.send({ embeds: [embed], files: [file] });
+      await showLeaderboard(message.channel, resolvedMapName);
+      break;
+    
+    case '!map', '!locs', '!locations', '!distribution':
+      const mapImage = mapImages[args.join(' ')];
+
+      if (!mapImage) {
+        return message.reply("❌ Unknown map. Try `abe`, `abaf`, or full names like `a balanced europe`.");
+      }
+
+      const imagePath = path.join(__dirname, "assets", mapImage);
+
+      if (!fs.existsSync(imagePath)) {
+        return message.reply("❌ Image file not found.");
+      }
+
+      const file = new AttachmentBuilder(imagePath);
+      const embed = new EmbedBuilder()
+        .setTitle(`${mapAliases[key]} - Distribution`)
+        .setImage(`attachment://${mapImage}`)
+        .setColor(0x2ecc71);
+
+      await message.channel.send({ embeds: [embed], files: [file] });
+      break;
   }
 }
 
 // Handles all comands of admins
 async function handleAdminCommands(message) {
   const content = message.content.trim().toLowerCase();
-  const command = content.split(' ')[0];
+  const [command, ...args] = content.split(' ');
   const createQuizId = getCreateQuizId(message);
-  if (command === '!private_msg') {
-    await sendPrivateMessageOffer(createQuizId);
-    await message.reply('Private thread creation message sent to the quiz channel!');
-  } else if (command === "!help_admin") {
-    const helpEmbed = new EmbedBuilder()
-      .setTitle("Administrator bot commands")
-      .setDescription("Here are all the available admin commands")
-      .addFields(
-        { name: '!help_admin', value: 'Show the admin help message' },
-        { name: '!private_msg', value: "Create an announcement message to create private quizzes" }
-      )
-      .setColor('#3498db');
-    await message.channel.send({ embeds: [helpEmbed] });
+  switch (command) {
+    case '!private_msg':
+      await sendPrivateMessageOffer(createQuizId);
+      await message.reply('Private thread creation message sent to the quiz channel!');
+      break;
+
+    case '!help_admin':
+      const helpEmbed = new EmbedBuilder()
+        .setTitle("Administrator bot commands")
+        .setDescription("Here are all the available admin commands")
+        .addFields(
+          { name: '!help_admin', value: 'Show the admin help message' },
+          { name: '!private_msg', value: "Create an announcement message to create private quizzes" }
+        )
+        .setColor('#3498db');
+      await message.channel.send({ embeds: [helpEmbed] });
+      break;
   }
 }
 

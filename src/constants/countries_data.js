@@ -1,4 +1,5 @@
 // List of aliases for every countries and terrritories
+// Not stored in a JSON, as it is intended to be unchanged
 const COUNTRIES_DATA = {
     // #region Africa
     "angola": {
