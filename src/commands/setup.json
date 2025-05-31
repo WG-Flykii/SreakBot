@@ -1,7 +1,7 @@
 {
 	"name": "setup",
 	"type": 1,
-	"default_member_permissions": "8",
+	"default_member_permissions": 8,
 	"description": "Set up StreakBot",
 	"options": [
 		{
