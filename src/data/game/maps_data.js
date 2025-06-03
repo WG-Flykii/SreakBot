@@ -1,7 +1,7 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { loadJsonFile } from '../utils.js';
+import { loadJsonFile } from '../../utils/json_utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -26,9 +26,11 @@ export function refreshMaps() {
   mapAliases = {};
   mapImages = {};
   for (const [name, map] of Object.entries(mapData)) {
+    mapAliases[name.toLowerCase()] = name;
+    mapImages[name.toLowerCase()] = map.distribution;
     for (const alias of map.aliases) {
-      mapAliases[alias] = name;
-      mapImages[alias] = map.distribution;
+      mapAliases[alias.toLowerCase()] = name;
+      mapImages[alias.toLowerCase()] = map.distribution;
     }
   }
   

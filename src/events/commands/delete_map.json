@@ -1,7 +1,6 @@
 {
 	"name": "delete_map",
 	"type": 1,
-	"default_member_permissions": 8,
 	"description": "Deletes a map from the available maps.",
     "options": [
         {

@@ -7,11 +7,13 @@ Feel free to use it on your own server!
 Test your geography knowledge with country streak challenges based on real Street View locations!  
 Compete solo or with friends, track your best streaks, and climb the leaderboard.
 
-<img src="./images/right_answer_screenshot.png" width="30%">
-<img src="./images/wrong_answer_screenshot.png" width="30%">
+<img src="./assets/images/right_answer_screenshot.png" width="30%">
+<img src="./assets/images/wrong_answer_screenshot.png" width="30%">
 
 ---
 ## 🕹️ **Available Commands**
+Note that most commands are text-based for speed, but admin commands often use slash commands for complex interactions and to hide actions from players.
+
 ### **Players**
 | Command | Description |
 | ------- | ----------- |
@@ -22,16 +24,21 @@ Compete solo or with friends, track your best streaks, and climb the leaderboard
 | `!maps` | Show all available maps |
 | `!stats` | Show your personal stats and records |
 | `!leaderboard <map>` | Show the leaderboard for a specific map |
-| `!invite @user` | Invite a user to your private thread *(only works in threads)* |
+| `!invite <@user>` | Invite a user to your private thread *(only works in threads)* |
+| `!kick <@user>` | Kick a user from your private thread *(only works in threads)* |
 
 ### **Admins**
 | Command | Description |
 | ------- | ----------- |
-| `!help_admin` | Show the admin help message" |
-| `!private_msg"` | "Create an announcement message to create private quizzes" |
+| `!help_admin` | Show the admin help message |
+| `!private_msg"` | Create an announcement message to create private quizzes |
+| `/create_channels` | Create channels under category StreakBot for the bot |
+| `/setup <create_quiz_channel> <quiz_channel> <admin_channel>` | Easily configure bot channels |
+| `/add_map <name> <aliases> [distribution]` | Add a map with aliases and a distribution map image (optional). The aliases should include the original map name. |
+| `/delete_map <name>` | Deletes a map from being able to be played. You may enter an alias. |
 
 ---
-![Preview 3](./images/stats_screenshot.png)
+![Preview 3](./assets/images/stats_screenshot.png)
 
 ---
 ## **Environment**
@@ -49,11 +56,11 @@ CLIENT_ID=
 2. Use `/create_channels` to create the channels for the bot (optional)
 3. Use `/setup` to set up the bot channels
     - `create_quiz_channel`: The channel where the "Create Private Thread" button will be posted
-    ![Create Quiz Channel](./images/announcement_screenshot.png)
+    ![Create Quiz Channel](./assets/images/announcement_screenshot.png)
     - `quiz_channel`: The main channel where quizzes are played and where threads will be created
-    ![Quiz Channel](./images/quiz_channel_screenshot.png)
+    ![Quiz Channel](./assets/images/quiz_channel_screenshot.png)
     - `admin_channel`: The channel where admins can control the bot
-    ![Admin Channel](./images/admin_channel_screenshot.png)
+    ![Admin Channel](./assets/images/admin_channel_screenshot.png)
 
 ---
 ## **Development**

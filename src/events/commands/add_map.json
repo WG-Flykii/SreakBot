@@ -1,0 +1,41 @@
+{
+	"name": "add_map",
+	"type": 1,
+	"description": "Adds a map to the available maps, or changes an existing map.",
+    "options": [
+        {
+			"name": "name",
+			"description": "The name of the map",
+			"type": 3,
+			"required": true
+		},
+		{
+			"name": "type",
+			"description": "The type of map",
+			"type": 3,
+			"required": true,
+			"choices": [
+				{
+					"name": "World",
+					"value": "world"
+				},
+				{
+					"name": "Country",
+					"value": "country"
+				}
+			]
+		},
+		{
+			"name": "aliases",
+			"description": "Aliases for guesses, separated by commas.",
+			"type": 3,
+			"required": true
+		},
+		{
+			"name": "distribution",
+			"description": "A screenshot of the map distribution (optional).",
+			"type": 11,
+			"required": false
+		}
+    ]
+}
