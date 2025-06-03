@@ -1,6 +1,6 @@
-node_modules/*
+node_modules
 .env
-src/data/user/*
+src/data/user
 *maps_data.json
 
 src/assets/images/*
