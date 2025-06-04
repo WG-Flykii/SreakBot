@@ -1,5 +1,5 @@
 {
-	"name": "add_map",
+	"name": "add-map",
 	"type": 1,
 	"description": "Adds a map to the available maps, or changes an existing map.",
     "options": [

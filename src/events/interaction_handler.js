@@ -7,10 +7,12 @@ import { dirname } from 'path';
 import { mapData, mapAliases, refreshMaps } from '../data/game/maps_data.js';
 
 import { saveJsonFile } from '../utils/json_utils.js';
-import { serverConfig, getAdminId, checkAdminChannel, createPrivateThread } from '../utils/bot_utils.js';
+import { serverConfig, checkAdminChannel, createPrivateThread } from '../utils/bot_utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+const SERVER_CONFIG_PATH = path.join(__dirname, '../data/user/server_config.json');
 
 export async function handleInteraction(interaction) {
     console.log('Interaction received:', interaction.type, interaction.customId ?? 'no customId');
@@ -23,9 +25,9 @@ export async function handleInteraction(interaction) {
   const guild = interaction.guild;
   switch (interaction.commandName) {
     case 'setup':
-      const createQuizId = interaction.options.getChannel('create_quiz_channel').id;
-      const quizId = interaction.options.getChannel('quiz_channel').id;
-      const adminId = interaction.options.getChannel('admin_channel').id;
+      const createQuizId = interaction.options.getChannel('create-private-quiz-channel').id;
+      const quizId = interaction.options.getChannel('quiz-channel').id;
+      const adminId = interaction.options.getChannel('admin-channel').id;
 
       serverConfig[guild.id] = { createQuizId, quizId, adminId };
       saveJsonFile(SERVER_CONFIG_PATH, serverConfig);
@@ -33,7 +35,7 @@ export async function handleInteraction(interaction) {
       await interaction.reply({ content: `Finished setting up StreakBot!`, flags: MessageFlags.Ephemeral});
       break;
 
-    case 'create_channels':
+    case 'create-channels':
       // Create StreakBot category
       const category = await guild.channels.create({
         name: 'StreakBot',
@@ -41,7 +43,7 @@ export async function handleInteraction(interaction) {
       });
 
       // Create channels under category
-      const channels = ['create-quiz', 'streakbot', 'bot-admin'];
+      const channels = ['🔐︱private-quiz', '🌎 | streakbot', '🛠️ | bot-admin'];
       for (const channel of channels) {
         await guild.channels.create({
           name: channel,
@@ -53,7 +55,7 @@ export async function handleInteraction(interaction) {
       await interaction.reply({ content: `Finished setting up channels!`, flags: MessageFlags.Ephemeral});
       break;
 
-    case 'add_map':
+    case 'add-map':
       if (!(await checkAdminChannel(interaction))) return;
 
       const addName = interaction.options.getString('name');
@@ -88,13 +90,8 @@ export async function handleInteraction(interaction) {
       await interaction.reply({ content: `Finished adding map "${addName}"!`});
       break;
 
-    case 'delete_map':
+    case 'delete-map':
       if (!(await checkAdminChannel(interaction))) return;
-
-      if (interaction.channel.id !== getAdminId(interaction)) {
-        await interaction.reply({ content: 'This command can only be used within the admin channel.'});
-        return;
-      }
 
       const deleteName = mapAliases[interaction.options.getString('name')];
       if (!(deleteName in mapData)) {

@@ -1,6 +1,7 @@
 # 🌍 **StreakBot**
 
-Made by **Flykii** for the [WorldGuessr Discord](https://discord.gg/nfebQwes6a)  
+Made by **Flykii (@flykii)** for the [WorldGuessr Discord](https://discord.gg/nfebQwes6a)
+Main development happens in the [Testing Discord](https://discord.gg/HpNfVY9kPe)
 Play Worldguessr at https://worldguessr.com
 Feel free to use it on your own server!
 
@@ -26,16 +27,17 @@ Note that most commands are text-based for speed, but admin commands often use s
 | `!leaderboard <map>` | Show the leaderboard for a specific map |
 | `!invite <@user>` | Invite a user to your private thread *(only works in threads)* |
 | `!kick <@user>` | Kick a user from your private thread *(only works in threads)* |
+| `!map/!locs/!locations/!distribution <map>` | Show the distribution map for a specific map |
 
 ### **Admins**
 | Command | Description |
 | ------- | ----------- |
 | `!help_admin` | Show the admin help message |
 | `!private_msg"` | Create an announcement message to create private quizzes |
-| `/create_channels` | Create channels under category StreakBot for the bot |
+| `/create-channels` | Create channels under category StreakBot for the bot |
 | `/setup <create_quiz_channel> <quiz_channel> <admin_channel>` | Easily configure bot channels |
-| `/add_map <name> <aliases> [distribution]` | Add a map with aliases and a distribution map image (optional). The aliases should include the original map name. |
-| `/delete_map <name>` | Deletes a map from being able to be played. You may enter an alias. |
+| `/add-map <name> <aliases> [distribution]` | Add a map with aliases and a distribution map image (optional). The aliases should include the original map name. |
+| `/delete-map <name>` | Deletes a map from being able to be played. You may enter an alias. |
 
 ---
 ![Preview 3](./assets/images/stats_screenshot.png)
@@ -53,13 +55,13 @@ CLIENT_ID=
 ---
 ## **Setup**
 1. Invite the bot to your server
-2. Use `/create_channels` to create the channels for the bot (optional)
+2. Use `/create-channels` to create the channels for the bot (optional)
 3. Use `/setup` to set up the bot channels
-    - `create_quiz_channel`: The channel where the "Create Private Thread" button will be posted
+    - `create-private-quiz-channel`: The channel where the "Create Private Thread" button will be posted
     ![Create Quiz Channel](./assets/images/announcement_screenshot.png)
-    - `quiz_channel`: The main channel where quizzes are played and where threads will be created
+    - `quiz-channel`: The main channel where quizzes are played and where threads will be created
     ![Quiz Channel](./assets/images/quiz_channel_screenshot.png)
-    - `admin_channel`: The channel where admins can control the bot
+    - `admin-channel`: The channel where admins can control the bot
     ![Admin Channel](./assets/images/admin_channel_screenshot.png)
 
 ---
@@ -71,6 +73,6 @@ CLIENT_ID=
 ---
 ## **Usage**
 1. Invite the bot to your server.
-2. Run `/create_channels` to create the channels for the bot (optional).
+2. Run `/create-channels` to create the channels for the bot (recommended).
 3. Run `/setup` to configure the bot channels.
 4. Have fun with developing and playing!

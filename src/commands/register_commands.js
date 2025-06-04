@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 
 async function loadCommands() {
     const commands = [];
-    const commandsPath = path.join(__dirname, 'commands');
+    const commandsPath = __dirname;
     
     try {
         const commandFiles = (await readdir(commandsPath)).filter(file => file.endsWith('.json'));

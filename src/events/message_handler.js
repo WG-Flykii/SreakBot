@@ -59,6 +59,7 @@ async function handlePlayerCommands(message) {
     case '!stop':
       const channelId = message.channel.id;
       const quiz = quizzesByChannel[channelId];
+      console.log(quiz);
 
       if (!quiz || quiz.solved) {
         return message.reply("❌ There's no ongoing game to stop in this channel.");
@@ -72,7 +73,7 @@ async function handlePlayerCommands(message) {
             .setTitle('🛑 Game Stopped')
             .setDescription(`The current game has been stopped manually.`)
             .addFields(
-              { name: 'Final Streak', value: `${quiz.currentStreak}`, inline: true },
+              { name: 'Final Streak', value: `${quiz.multi.currentStreak}`, inline: true },
               {
                 name: "Exact Location",
                 value: `[View on Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${quiz.location.lat},${quiz.location.lng}&heading=0&pitch=0)`
@@ -128,7 +129,7 @@ async function handlePlayerCommands(message) {
       break;
 
     case '!stats':
-      await showPersonalStats(message);
+      await showPersonalStats(message, args.join(' '));
       break;
 
     case '!leaderboard':

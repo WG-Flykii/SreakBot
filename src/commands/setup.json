@@ -5,19 +5,19 @@
 	"description": "Set up StreakBot",
 	"options": [
 		{
-			"name": "create_quiz_channel",
+			"name": "create-private-quiz-channel",
 			"description": "The channel where the 'Create Private Thread' button will be posted",
 			"type": 7,
 			"required": true
 		},
 		{
-			"name": "quiz_channel",
+			"name": "quiz-channel",
 			"description": "The main channel where quizzes are played and where threads will be created",
 			"type": 7,
 			"required": true
 		},
 		{
-			"name": "admin_channel",
+			"name": "admin-channel",
 			"description": "The channel where admins can control the bot",
 			"type": 7,
 			"required": true
