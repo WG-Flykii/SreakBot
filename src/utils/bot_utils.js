@@ -124,15 +124,6 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       selectedMapName = mapNames[Math.floor(Math.random() * mapNames.length)];
     }
 
-    const loadingMessage = await channel.send({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle('🌍 Loading Quiz...')
-          .setDescription('Preparing your challenge, please wait...')
-          .setColor('#3498db')
-      ]
-    });
-
     const channelData = quizzesByChannel[channel.id] || {};
     quizzesByChannel[channel.id] = {
       solo: {
@@ -153,7 +144,19 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       subdivision: null
     };
 
+    const loadingMessage = await channel.send({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle('🌍 Loading Quiz...')
+          .setDescription('Preparing your challenge, please wait...')
+          .setColor('#3498db')
+      ]
+    });
+
     const mapLocations = await fetchMapLocations(selectedMapName);
+
+    // Adding a bunch of checks in case !stop is used
+    if (quizzesByChannel[channel.id].solved) return;
     if (!mapLocations || mapLocations.length === 0) {
       await loadingMessage.delete().catch(e => console.error("Couldn't delete loading message:", e));
       await channel.send("Could not fetch locations for this map.");
@@ -164,6 +167,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
     const location = mapLocations[locationIndex];
     quizzesByChannel[channel.id].location = location;
 
+    if (quizzesByChannel[channel.id].solved) return;
     const embedUrl = getWorldGuessrEmbedUrl(location);
     if (!embedUrl) {
       await loadingMessage.delete().catch(e => console.error("Couldn't delete loading message:", e));
@@ -173,6 +177,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
 
     let locationInfo;
     while (!locationInfo || !locationInfo.country) {
+      if (quizzesByChannel[channel.id].solved) return;
       locationInfo = await getCountryFromCoordinates(location.lat, location.lng);
 
       if (!locationInfo || !locationInfo.country) {
@@ -184,6 +189,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       }
     }
 
+    if (quizzesByChannel[channel.id].solved) return;
     const screenshotBuffer = await takeScreenshot(embedUrl, channel.id);
 
     quizzesByChannel[channel.id].country = locationInfo.country;
@@ -198,6 +204,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       .setColor('#3498db')
       .setFooter({ text: `Map: ${selectedMapName} | Current Streak: ${quizzesByChannel[channel.id].multi.currentStreak}` });
 
+    if (quizzesByChannel[channel.id].solved) return;
     await channel.send({ embeds: [embed], files: [attachment] });
     quizzesByChannel[channel.id].startTime = Date.now();
 
@@ -207,6 +214,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
     console.log(JSON.stringify(locationInfo.address, null, 2));
 
   } catch (error) {
+    console.log(quizzesByChannel[channel.id]);
     console.error(`Error starting quiz: ${error}`);
     await channel.send("An error occurred while creating the quiz. Please do !stop, and try again.");
   }
@@ -472,7 +480,7 @@ export async function handleGuess(message, guess) {
           .setColor('#e74c3c')
       ]
     });
-    delete quizzesByChannel[channelId];
+    quizzesByChannel[channelId] = { solved: false };
   }
 }
 

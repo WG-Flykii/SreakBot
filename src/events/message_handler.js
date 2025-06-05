@@ -67,23 +67,31 @@ async function handlePlayerCommands(message) {
 
       quiz.solved = true;
 
-      await message.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle('🛑 Game Stopped')
-            .setDescription(`The current game has been stopped manually.`)
-            .addFields(
-              { name: 'Final Streak', value: `${quiz.multi.currentStreak}`, inline: true },
-              {
-                name: "Exact Location",
-                value: `[View on Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${quiz.location.lat},${quiz.location.lng}&heading=0&pitch=0)`
-              }
-            )
-            .setColor('#f39c12')
-        ]
-      });
+      const stopEmbed = new EmbedBuilder()
+        .setTitle('🛑 Game Stopped')
+        .setDescription(`The current game has been stopped manually.`)
+        .addFields(
+          { name: 'Final Streak', value: `${quiz.multi.currentStreak}`, inline: true },
+        )
+        .setColor('#f39c12')
+      
+      if (quiz.location) {
+        stopEmbed.addFields(
+          {
+            name: "Exact Location",
+            value: `[View on Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${quiz.location.lat},${quiz.location.lng}&heading=0&pitch=0)`
+          }
+        );
+      } else {
+        stopEmbed.addFields(
+          {
+            name: "Exact Location",
+            value: "Location has not been loaded."
+          }
+        );
+      }
 
-      delete quizzesByChannel[channelId];
+      await message.reply({ embeds: [stopEmbed] });
       break;
 
     case '!g':
