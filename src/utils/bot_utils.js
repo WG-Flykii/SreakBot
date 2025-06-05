@@ -42,6 +42,10 @@ export function setClient(client) {
   global.client = client;
 }
 
+function userList(users) {
+  return users.map(user => `<@${user}>`).join(', ');
+}
+
 export function formatTime(milliseconds) {
   const totalSeconds = Math.floor(milliseconds / 1000);
   const minutes = Math.floor(totalSeconds / 60);
@@ -49,6 +53,10 @@ export function formatTime(milliseconds) {
   const ms = Math.floor((milliseconds % 1000) / 10);
 
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+}
+
+function findObjectIndex(obj, key) {
+  return Object.keys(obj).findIndex(k => k === key);
 }
 
 export function resolveMapName(input) {
@@ -224,15 +232,17 @@ export async function handleGuess(message, guess) {
   if (!correctCountry) return;
 
   const countryInfo = COUNTRIES[correctCountry.toLowerCase()] ||
-      COUNTRIES[normalizeCountry(correctCountry.toLowerCase())];
+    COUNTRIES[normalizeCountry(correctCountry.toLowerCase())];
 
   const isCorrect = checkCountryGuess(guess, correctCountry);
   const { lat, lng } = quiz.location;
 
+  const now = Date.now();
+  const quizTime = now - quiz.startTime;
+
   if (isCorrect) {
     const userId = message.author.id;
     const mapName = quiz.mapName;
-    const quizTime = Date.now() - quiz.startTime;
 
     quiz.solved = true;
 
@@ -254,6 +264,111 @@ export async function handleGuess(message, guess) {
       pbStreaksMulti[userId] = {};
     }
 
+    if (!lbStreaksSolo[mapName]) {
+      lbStreaksSolo[mapName] = {};
+    }
+    if (!lbStreaksMulti[mapName]) {
+      lbStreaksMulti[mapName] = {};
+    }
+
+    const lbKeySolo = pbStreaksSolo[userId][mapName]?.date || -1;
+    let lbKeysMulti = quiz.participants.map(p => pbStreaksMulti[p][mapName]?.date || -1);
+
+    const lbEntrySolo = {
+      userId: userId,
+      streak: quiz.solo.currentStreak,
+      averageTime: quiz.solo.averageTime,
+      date: now
+    };
+    const lbEntryMulti = {
+      participants: quiz.participants,
+      streak: quiz.multi.currentStreak,
+      averageTime: quiz.multi.averageTime,
+      date: now
+    }
+
+    const oldLbEntrySolo = lbStreaksSolo[mapName][lbKeySolo];
+    if (lbKeySolo === -1) {
+      lbStreaksSolo[mapName][now] = lbEntrySolo;
+    } else if (
+      quiz.solo.currentStreak > oldLbEntrySolo.streak
+      || (
+        quiz.solo.currentStreak === oldLbEntrySolo.streak
+        && quiz.solo.averageTime < oldLbEntrySolo.averageTime
+      )
+    ) {
+      delete lbStreaksSolo[mapName][lbKeySolo];
+      lbStreaksSolo[mapName][now] = lbEntrySolo;
+    }
+
+    // Goal: every entry must be at least one participants PB
+    // and each participant's PB must appear
+    // Algorithm: find indices where the new streak is a PB,
+    // If it is at least one person's first streak: insert immediately and return
+    // If it is somebody's PB:
+    //   check if you can delete old PBs by checking that nobody else's PB is the old PB
+    //   insert the new PB in order
+    // If it is nobody's PB:
+    //   do nothing
+
+    let save;
+    if (lbKeysMulti.includes(-1)) {
+      lbStreaksMulti[mapName][now] = lbEntryMulti;
+      lbKeysMulti = lbKeysMulti.filter(k => k !== -1);
+      save = true;
+    } else save = false;
+
+    let deletions = [];
+    for (const key of lbKeysMulti) {
+      if (deletions.includes(key)) continue;
+      // Check if it's better than the current PB
+      let canDelete = true;
+      const pbEntry = lbStreaksMulti[mapName][key]; // Current place on LB
+      if (
+        quiz.multi.currentStreak > pbEntry.streak
+        || (
+          quiz.multi.currentStreak === pbEntry.streak
+          && quiz.multi.averageTime < pbEntry.averageTime
+        )
+      ) {
+        save = true;
+        // Only try to delete if it's better than old PB
+        // Check if it's somebody's PB, if so don't delete
+        for (const p of pbEntry.participants) {
+          if (quiz.participants.includes(p)) continue;
+          if (pbStreaksMulti[p][mapName].date === key) {
+            canDelete = false; break;
+          }
+        }
+        if (canDelete) deletions.push(key);
+      }
+    }
+
+    if (save) {
+      for (const key of deletions) {
+        delete lbStreaksMulti[mapName][key];
+      }
+      lbStreaksMulti[mapName][now] = lbEntryMulti;
+    }
+
+    // TODO: effficient insertion with binary search
+    lbStreaksSolo[mapName] = Object.fromEntries(
+      Object.entries(lbStreaksSolo[mapName]).sort(([,a], [,b]) => {
+        if (b.streak !== a.streak) {
+          return b.streak - a.streak;
+        }
+        return a.averageTime - b.averageTime;
+      })
+    );
+    lbStreaksMulti[mapName] = Object.fromEntries(
+      Object.entries(lbStreaksMulti[mapName]).sort(([,a], [,b]) => {
+        if (b.streak !== a.streak) {
+          return b.streak - a.streak;
+        }
+        return a.averageTime - b.averageTime;
+      })
+    );
+
     if (
       !pbStreaksSolo[userId][mapName]
       || quiz.solo.currentStreak > pbStreaksSolo[userId][mapName].streak
@@ -265,7 +380,7 @@ export async function handleGuess(message, guess) {
       pbStreaksSolo[userId][mapName] = {
         streak: quiz.solo.currentStreak,
         averageTime: quiz.solo.averageTime,
-        lastUpdate: Date.now(),
+        date: now,
       };
     }
 
@@ -282,43 +397,10 @@ export async function handleGuess(message, guess) {
           streak: quiz.multi.currentStreak,
           averageTime: quiz.multi.averageTime,
           participants: quiz.participants,
-          lastUpdate: Date.now(),
+          date: now,
         };
       }
     }
-
-    if (!lbStreaksSolo[mapName]) {
-      lbStreaksSolo[mapName] = [];
-    }
-
-    const userIndex = lbStreaksSolo[mapName].findIndex(entry => entry.userId === userId);
-
-    const lbEntrySolo = {
-      userId: userId,
-      streak: quiz.solo.currentStreak,
-      averageTime: quiz.solo.averageTime,
-      lastUpdate: Date.now()
-    };
-
-    if (userIndex === -1) {
-      lbStreaksSolo[mapName].push(lbEntrySolo);
-    } else if (
-      quiz.solo.currentStreak > lbStreaksSolo[mapName][userIndex].streak
-      || (
-        quiz.solo.currentStreak === lbStreaksSolo[mapName][userIndex].streak
-        && quiz.solo.averageTime < lbStreaksSolo[mapName][userIndex].averageTime
-      )
-    ) {
-      lbStreaksSolo[mapName][userIndex] = lbEntrySolo;
-    }
-
-    // TODO: effficient insertion with binary search
-    lbStreaksSolo[mapName].sort((a, b) => {
-      if (b.streak !== a.streak) {
-        return b.streak - a.streak;
-      }
-      return a.averageTime - b.averageTime;
-    });
 
     saveJsonFile(SOLO_PB_STREAK_PATH, pbStreaksSolo);
     saveJsonFile(SOLO_LB_STREAK_PATH, lbStreaksSolo);
@@ -333,7 +415,7 @@ export async function handleGuess(message, guess) {
           .setTitle(`${flag} Correct!`)
           .setDescription(`You guessed it right! The location is in **${correctCountry}**.`)
           .addFields(
-            { name: 'Subdivision', value: `**${subdivision}**`, inline: true },
+            { name: 'Subdivision', value: `${subdivision}`, inline: true },
             { name: 'Time This Round', value: formatTime(quizTime), inline: true },
             { name: 'Average Total Time', value: formatTime(quiz.multi.averageTime), inline: true },
             { name: 'Average Solo Time', value: formatTime(quiz.solo.averageTime), inline: true },
@@ -351,7 +433,7 @@ export async function handleGuess(message, guess) {
     quizzesByChannel[channelId] = {
       solo: quiz.solo,
       multi: quiz.multi,
-      startTime: Date.now(),
+      startTime: now,
       solved: true,
       mapName: quiz.mapName,
       lastParticipant: quiz.lastParticipant,
@@ -364,15 +446,12 @@ export async function handleGuess(message, guess) {
     setTimeout(async () => {
       await newLoc(message.channel, quizId, quiz.mapName, message.author.id);
     }, 300);
-
   } else {
     const flag = countryInfo?.flag || '';
-
-    const quizTime = Date.now() - quiz.startTime;
     //const pb = pbStreaksSolo[message.author.id]?.[quiz.mapName]?.streak || 0;
 
-    
-    const participantsList = quiz.participants.map(p => `<@${p}>`).join(', ');
+    const participantsList = userList(quiz.participants);
+
 
     await message.reply({
       embeds: [
@@ -380,7 +459,7 @@ export async function handleGuess(message, guess) {
           .setTitle('❌ Game Over!')
           .setDescription(`Wrong guess! The correct answer was **${correctCountry}** ${flag}.`)
           .addFields(
-            { name: 'Subdivision', value: `**${subdivision}**`, inline: true },
+            { name: 'Subdivision', value: `${subdivision}`, inline: true },
             { name: 'Time This Round', value: formatTime(quizTime), inline: true },
             { name: 'Average Time', value: formatTime(quiz.multi.averageTime), inline: true },
             { name: 'Final Streak', value: `${quiz.multi.currentStreak}`, inline: true },
@@ -547,9 +626,8 @@ export function initializeThreadCleanup() {
   }, 6 * 60 * 60 * 1000);
 }
 
-export async function showLeaderboard(channel, inputName) {
+export async function showLeaderboard(interaction, inputName, type) {
   const normalizedInput = inputName?.toLowerCase();
-
   let mapName = mapAliases[normalizedInput] || inputName;
 
   if (!mapName || !mapNames.includes(mapName)) {
@@ -557,91 +635,143 @@ export async function showLeaderboard(channel, inputName) {
     if (similarMap) {
       mapName = similarMap;
     } else {
-      await channel.send(`Map "${inputName}" not found. Available maps: ${mapNames.join(', ')}`);
+      await interaction.reply(`Map "${inputName}" not found. Available maps: ${mapNames.join(', ')}`);
       return;
     }
   }
 
-  const mapLb = lbStreaksSolo[mapName] || [];
+  if (type === 'solo') {
+    const mapLb = lbStreaksSolo[mapName] || {};
 
-  if (mapLb.length === 0) {
-    await channel.send(`No leaderboard data for map "${mapName}" yet. Be the first to set a record!`);
-    return;
+    if (mapLb.length === 0) {
+      await interaction.reply(`No solo leaderboard data for map "${mapName}" yet. Be the first to set a record!`);
+      return;
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle(`🏆 ${mapName} - Solo leaderboard`)
+      .setColor('#f1c40f')
+      .setFooter({ text: `Updated: ${getDay()}` });
+
+    const topPlayers = Object.values(mapLb).slice(0, 10);
+
+    let description = '';
+    topPlayers.forEach((entry, index) => {
+      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+      const time = formatTime(entry.averageTime);
+      description += `${medal} **<@${entry.userId}>** - Streak: ${entry.streak} | Average Time: ${time} | Date: ${getDay(entry.date)}\n`;
+    });
+
+    embed.setDescription(description);
+    await interaction.reply({ embeds: [embed] });
+  } else if (type === 'multi') {
+    const mapLb = lbStreaksMulti[mapName] || {};
+
+    if (mapLb.length === 0) {
+      await interaction.reply(`No multi leaderboard data for map "${mapName}" yet. Be the first to set a record!`);
+      return;
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle(`🏆 ${mapName} - Multi leaderboard`)
+      .setColor('#f1c40f')
+      .setFooter({ text: `Updated: ${getDay()}` });
+
+    const topPlayers = Object.values(mapLb).slice(0, 10);
+
+    let description = '';
+    topPlayers.forEach((entry, index) => {
+      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+      const time = formatTime(entry.averageTime);
+      description += `${medal} ${userList(entry.participants)}\n`;
+      description += `Streak: ${entry.streak} | Average Time: ${time} | Date: ${getDay(entry.date)}\n\n`;
+    });
+
+    embed.setDescription(description);
+    await interaction.reply({ embeds: [embed] });
   }
-
-  const embed = new EmbedBuilder()
-    .setTitle(`🏆 ${mapName} - Leaderboard`)
-    .setColor('#f1c40f')
-    .setFooter({ text: `Updated: ${getDay()}` });
-
-  const topPlayers = mapLb.slice(0, 10);
-
-  let description = '';
-  topPlayers.forEach((entry, index) => {
-    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-    const time = formatTime(entry.averageTime);
-    description += `${medal} **<@${entry.userId}>** - Streak: ${entry.streak} | Average Time: ${time} | Date: ${getDay(entry.lastUpdate)}\n`;
-  });
-
-  embed.setDescription(description);
-  await channel.send({ embeds: [embed] });
 }
 
-export async function showPersonalStats(message, user) {
-  let userId, targetUser;
-  if (user.length == 0) {
-    userId = message.author.id;
-    targetUser = message.author;
-  } else if (message.mentions.users.size > 0) {
-    targetUser = message.mentions.users.first();
-    userId = targetUser.id;
-  } else {
-    let found = false;
-    for (const id of Object.keys(pbStreaksSolo)) {
-      const username = (await client.users.fetch(id)).username;
-      if (username.toLowerCase() === user.toLowerCase()) {
-        userId = id;
-        targetUser = username;
-        found = true;
-        break;
+export async function showPersonalStats(interaction, user, type) {
+  if (type === 'solo') {
+    const userStats = pbStreaksSolo[user.id] || [];
+
+    if (userStats.length === 0) {
+      return interaction.reply(`${user.username} doesn't have a solo streak yet.`);
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle(`📊 Solo stats for ${(await client.users.fetch(user.id)).username}`)
+      .setColor('#9b59b6');
+
+    let description = '';
+    for (const [mapName, stats] of Object.entries(userStats)) {
+      const formattedTime = formatTime(stats.averageTime);
+      let position = 'not ranked';
+      if (lbStreaksSolo[mapName]) {
+        const userPos = findObjectIndex(
+          lbStreaksSolo[mapName],
+          String(pbStreaksSolo[user.id][mapName].date)
+        );
+        if (userPos >= 0) {
+          position = `#${userPos + 1}`;
+        }
       }
 
-      if (found) break;
+      description += `**${mapName}**\n`;
+      description += `Best Streak: ${stats.streak} | Time: ${formattedTime} | Rank: ${position} | Date: ${getDay(stats.date)}\n\n`;
     }
 
-    if (!found) {
-      return message.reply(`User "${user}" not found in stats database`);
+    embed.setDescription(description);
+    await interaction.reply({ embeds: [embed] });
+  } else if (type === 'multi') {
+    const userStats = pbStreaksMulti[user.id] || [];
+
+    if (userStats.length === 0) {
+      return interaction.reply(`${user.username} doesn't have a multi streak yet.`);
     }
-  }
 
-  const userStats = pbStreaksSolo[userId] || {};
+    const embed = new EmbedBuilder()
+      .setTitle(`📊 Multi stats for ${(await client.users.fetch(user.id)).username}`)
+      .setColor('#9b59b6');
 
-  if (Object.keys(userStats).length === 0) {
-    return message.reply(`${targetUser.username} doesn't have a streak yet.`);
-  }
-
-  const embed = new EmbedBuilder()
-    .setTitle(`📊 Stats for ${await client.users.fetch(userId).username}`)
-    .setColor('#9b59b6');
-
-  let description = '';
-  for (const [mapName, stats] of Object.entries(userStats)) {
-    const formattedTime = formatTime(stats.averageTime);
-
-    let position = 'not ranked';
-    if (lbStreaksSolo[mapName]) {
-      const userPos = lbStreaksSolo[mapName].findIndex(entry => entry.userId === userId);
-      if (userPos >= 0) {
-        position = `#${userPos + 1}`;
+    let description = '';
+    for (const [mapName, stats] of Object.entries(userStats)) {
+      const formattedTime = formatTime(stats.averageTime);
+      let position = 'not ranked';
+      if (lbStreaksMulti[mapName]) {
+        const userPos = findObjectIndex(
+          lbStreaksMulti[mapName],
+          String(pbStreaksMulti[user.id][mapName].date)
+        );
+        if (userPos >= 0) {
+          position = `#${userPos + 1}`;
+        }
       }
+
+      description += `**${mapName}**\n`
+      description += `Participants: ${userList(stats.participants)}\n`;
+      description += `Best Streak: ${stats.streak} | Time: ${formattedTime} | Rank: ${position} | Date: ${getDay(stats.date)}\n\n`;
     }
 
-    description += `**${mapName}**\n`;
-    description += `Best Streak: ${stats.streak} | Time: ${formattedTime} | Rank: ${position} | Date: ${getDay(stats.lastUpdate)}\n\n`;
+    embed.setDescription(description);
+    await interaction.reply({ embeds: [embed] });
+  }
+}
+
+export async function checkQuizChannel(interaction) {
+  if (!getQuizId(interaction)) {
+    await interaction.reply({ content: `The server has not been set up yet for StreakBot.`, flags: MessageFlags.Ephemeral});
+    return false;
   }
 
-  embed.setDescription(description);
-  await message.reply({ embeds: [embed] });
+  const channel = await client.channels.fetch(getQuizId(interaction));
+  if (interaction.channel !== channel) {
+    await interaction.reply({ content: `This command can only be used within the quiz channel <#${getQuizId(interaction)}>.`, flags: MessageFlags.Ephemeral});
+    return false;
+  }
+
+  return true;
 }
 
 export async function checkAdminChannel(interaction) {

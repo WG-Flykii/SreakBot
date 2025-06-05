@@ -24,7 +24,6 @@ Note that most commands are text-based for speed, but admin commands often use s
 | `!g <country>` | Submit your guess for the current quiz |
 | `!maps` | Show all available maps |
 | `!stats` | Show your personal stats and records |
-| `!leaderboard <map>` | Show the leaderboard for a specific map |
 | `!invite <@user>` | Invite a user to your private thread *(only works in threads)* |
 | `!kick <@user>` | Kick a user from your private thread *(only works in threads)* |
 | `!map/!locs/!locations/!distribution <map>` | Show the distribution map for a specific map |

@@ -7,7 +7,7 @@ import { dirname } from 'path';
 import { mapData, mapAliases, refreshMaps } from '../data/game/maps_data.js';
 
 import { saveJsonFile } from '../utils/json_utils.js';
-import { serverConfig, checkAdminChannel, createPrivateThread } from '../utils/bot_utils.js';
+import { serverConfig, checkQuizChannel, checkAdminChannel, createPrivateThread, showLeaderboard, showPersonalStats } from '../utils/bot_utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -23,7 +23,10 @@ export async function handleInteraction(interaction) {
   }
 
   const guild = interaction.guild;
+  let type, map, user;
+
   switch (interaction.commandName) {
+    // #region -- Config --
     case 'setup':
       const createQuizId = interaction.options.getChannel('create-private-quiz-channel').id;
       const quizId = interaction.options.getChannel('quiz-channel').id;
@@ -54,7 +57,9 @@ export async function handleInteraction(interaction) {
 
       await interaction.reply({ content: `Finished setting up channels!`, flags: MessageFlags.Ephemeral});
       break;
-
+    // #endregion
+    
+    // #region -- Admin --
     case 'add-map':
       if (!(await checkAdminChannel(interaction))) return;
 
@@ -104,5 +109,28 @@ export async function handleInteraction(interaction) {
 
       await interaction.reply({ content: `Finished deleting map "${deleteName}"!`});
       break;
+    // #endregion
+
+    // #region -- Player --
+    case 'leaderboard':
+      if (!(await checkQuizChannel(interaction))) return;
+
+      type = interaction.options.getString('type');
+      map = interaction.options.getString('map');
+
+      await showLeaderboard(interaction, map, type);
+      break;
+    
+    case 'stats':
+      if (!(await checkQuizChannel(interaction))) return;
+
+      type = interaction.options.getString('type');
+      user = interaction.options.getUser('user');
+
+      await showPersonalStats(interaction, user, type)
+      break;
+    // #endregion
   }
+
+
 }

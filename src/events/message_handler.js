@@ -120,30 +120,11 @@ async function handlePlayerCommands(message) {
           { name: '!g <country>', value: 'Submit your guess for the current quiz' },
           { name: '!maps', value: 'Show all available maps' },
           { name: '!stats', value: 'Show your personal stats and records' },
-          { name: '!leaderboard <map>', value: 'Show the leaderboard for a specific map' },
           { name: '!invite <@user>', value: 'Invite a user to your private thread *(only works in threads)*' },
           { name: '!kick <@user>', value: 'Kick a user from your private thread *(only works in threads)*' }
         )
         .setColor('#3498db');
       await message.channel.send({ embeds: [helpEmbed] });
-      break;
-
-    case '!stats':
-      await showPersonalStats(message, args.join(' '));
-      break;
-
-    case '!leaderboard':
-      const input = args.join(' ').toLowerCase();
-      const resolvedMapName = mapAliases[input];
-
-      if (!resolvedMapName) {
-        return message.reply({
-          content: `Unknown map: \`${input}\`. Try one of: ${mapNames.join(', ')}`,
-          flags: MessageFlags.Ephemeral
-        });
-      }
-
-      await showLeaderboard(message.channel, resolvedMapName);
       break;
 
     case '!map':
