@@ -33,6 +33,8 @@ export const getCreateQuizId = (action) => serverConfig[action.guild.id]?.create
 export const getQuizId = (action) => serverConfig[action.guild.id]?.quizId; // Main quiz channel
 export const getAdminId = (action) => serverConfig[action.guild.id]?.adminId; // Channel to make sendPrivateMessageOffer
 
+const locRetries = 3;
+
 function getDay(date = null) {
   const targetDate = date ? new Date(date) : new Date();
   return targetDate.toISOString().split('T')[0];
@@ -135,15 +137,16 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
         currentStreak: channelData.multi?.currentStreak || 0
       },
       startTime: null,
-      solved: false,
       mapName: selectedMapName,
       lastParticipant: channelData.lastParticipant || null,
       participants: channelData.participants || [],
       location: null,
       country: null,
-      subdivision: null
+      subdivision: null,
+      retries: channelData.retries || 0
     };
 
+    if (!quizzesByChannel[channel.id]) return;
     const loadingMessage = await channel.send({
       embeds: [
         new EmbedBuilder()
@@ -153,13 +156,12 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       ]
     });
 
+    if (!quizzesByChannel[channel.id]) return;
     const mapLocations = await fetchMapLocations(selectedMapName);
 
     // Adding a bunch of checks in case !stop is used
-    if (quizzesByChannel[channel.id].solved) return;
     if (!mapLocations || mapLocations.length === 0) {
-      await loadingMessage.delete().catch(e => console.error("Couldn't delete loading message:", e));
-      await channel.send("Could not fetch locations for this map.");
+      await loadingMessage.edit("Could not fetch locations for this map.");
       return;
     }
 
@@ -167,29 +169,27 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
     const location = mapLocations[locationIndex];
     quizzesByChannel[channel.id].location = location;
 
-    if (quizzesByChannel[channel.id].solved) return;
     const embedUrl = getWorldGuessrEmbedUrl(location);
     if (!embedUrl) {
-      await loadingMessage.delete().catch(e => console.error("Couldn't delete loading message:", e));
-      await channel.send("Error generating quiz location.");
+      await loadingMessage.edit("Error generating quiz location.");
       return;
     }
 
     let locationInfo;
     while (!locationInfo || !locationInfo.country) {
-      if (quizzesByChannel[channel.id].solved) return;
+      if (!quizzesByChannel[channel.id]) return;
       locationInfo = await getCountryFromCoordinates(location.lat, location.lng);
 
       if (!locationInfo || !locationInfo.country) {
-        await loadingMessage.delete().catch(e => console.error("Couldn't delete loading message:", e));
-        await channel.send("Error fetching country for the location. Deleting it from the map and retrying...");
+        await loadingMessage.edit("Error fetching country for the location. Deleting it from the map and retrying...");
         mapCache[maps[selectedMapName]].splice(locationIndex, 1);
+        if (!quizzesByChannel[channel.id]) return;
         newLoc(channel, quizId, mapName, userId);
         return;
       }
     }
 
-    if (quizzesByChannel[channel.id].solved) return;
+    if (!quizzesByChannel[channel.id]) return;
     const screenshotBuffer = await takeScreenshot(embedUrl, channel.id);
 
     quizzesByChannel[channel.id].country = locationInfo.country;
@@ -204,19 +204,26 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       .setColor('#3498db')
       .setFooter({ text: `Map: ${selectedMapName} | Current Streak: ${quizzesByChannel[channel.id].multi.currentStreak}` });
 
-    if (quizzesByChannel[channel.id].solved) return;
-    await channel.send({ embeds: [embed], files: [attachment] });
+    await loadingMessage.edit({ embeds: [embed], files: [attachment] });
     quizzesByChannel[channel.id].startTime = Date.now();
-
-    await loadingMessage.delete().catch(e => console.error("Couldn't delete loading message:", e));
 
     console.log(`New quiz started in channel ${channel.id}. Map: ${selectedMapName}, Answer: ${locationInfo.country}`);
     console.log(JSON.stringify(locationInfo.address, null, 2));
 
+    quizzesByChannel[channel.id].retries = 0;
+
   } catch (error) {
+    if (!quizzesByChannel[channel.id]) return;
     console.log(quizzesByChannel[channel.id]);
     console.error(`Error starting quiz: ${error}`);
-    await channel.send("An error occurred while creating the quiz. Please do !stop, and try again.");
+    quizzesByChannel[channel.id].retries++;
+    if (quizzesByChannel[channel.id].retries > locRetries) {
+      await channel.send(`Max retries reached. Stopping quiz.`);
+      delete quizzesByChannel[channel.id];
+      return;
+    }
+    await channel.send(`An error occurred while creating the quiz. Using ${quizzesByChannel[channel.id].retries} out of ${locRetries} retries.`);
+    newLoc(channel, quizId, mapName, userId);
   }
 }
 
@@ -227,7 +234,7 @@ export async function handleGuess(message, guess) {
 
   const channelId = message.channel.id;
   const quiz = quizzesByChannel[channelId];
-  if (!quiz || quiz.solved) return;
+  if (!quiz) return;
 
   const subdivision = quiz.subdivision || 'Unknown subdivision';
   const quizId = getQuizId(message);
@@ -251,8 +258,6 @@ export async function handleGuess(message, guess) {
   if (isCorrect) {
     const userId = message.author.id;
     const mapName = quiz.mapName;
-
-    quiz.solved = true;
 
     quiz.multi.currentStreak++;
     if (userId !== quiz.lastParticipant) {
@@ -438,11 +443,12 @@ export async function handleGuess(message, guess) {
       ]
     });
 
+    // To check when stopped
+    if (!quizzesByChannel[channelId]) return;
     quizzesByChannel[channelId] = {
       solo: quiz.solo,
       multi: quiz.multi,
       startTime: now,
-      solved: true,
       mapName: quiz.mapName,
       lastParticipant: quiz.lastParticipant,
       participants: quiz.participants,
@@ -451,9 +457,7 @@ export async function handleGuess(message, guess) {
       subdivision: quiz.subdivision
     };
 
-    setTimeout(async () => {
-      await newLoc(message.channel, quizId, quiz.mapName, message.author.id);
-    }, 300);
+    await newLoc(message.channel, quizId, quiz.mapName, message.author.id);
   } else {
     const flag = countryInfo?.flag || '';
     //const pb = pbStreaksSolo[message.author.id]?.[quiz.mapName]?.streak || 0;
@@ -480,7 +484,7 @@ export async function handleGuess(message, guess) {
           .setColor('#e74c3c')
       ]
     });
-    quizzesByChannel[channelId] = { solved: false };
+    delete quizzesByChannel[channelId];
   }
 }
 

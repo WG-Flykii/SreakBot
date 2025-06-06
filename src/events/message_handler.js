@@ -61,11 +61,10 @@ async function handlePlayerCommands(message) {
       const quiz = quizzesByChannel[channelId];
       console.log(quiz);
 
-      if (!quiz || quiz.solved) {
+      if (!quiz) {
+        console.log(quiz);
         return message.reply("❌ There's no ongoing game to stop in this channel.");
       }
-
-      quiz.solved = true;
 
       const stopEmbed = new EmbedBuilder()
         .setTitle('🛑 Game Stopped')
@@ -91,6 +90,8 @@ async function handlePlayerCommands(message) {
         );
       }
 
+      delete quizzesByChannel[channelId];
+
       await message.reply({ embeds: [stopEmbed] });
       break;
 
@@ -99,7 +100,7 @@ async function handlePlayerCommands(message) {
       break;
 
     case '!play':
-      if (quizzesByChannel[message.channel.id] && !quizzesByChannel[message.channel.id].solved) {
+      if (quizzesByChannel[message.channel.id]) {
         await message.reply("There's already an active quiz. Solve it first or wait for it to complete!");
         return;
       }
