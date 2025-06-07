@@ -276,7 +276,6 @@ export async function handleGuess(message, guess) {
     if (!pbStreaksMulti[userId]) {
       pbStreaksMulti[userId] = {};
     }
-
     if (!lbStreaksSolo[mapName]) {
       lbStreaksSolo[mapName] = {};
     }
@@ -284,25 +283,26 @@ export async function handleGuess(message, guess) {
       lbStreaksMulti[mapName] = {};
     }
 
-    const lbKeySolo = pbStreaksSolo[userId][mapName]?.date || -1;
-    let lbKeysMulti = quiz.participants.map(p => pbStreaksMulti[p][mapName]?.date || -1);
-
-    const lbEntrySolo = {
-      userId: userId,
+    const soloEntry = {
       streak: quiz.solo.currentStreak,
       averageTime: quiz.solo.averageTime,
+      participants: [userId],
       date: now
     };
-    const lbEntryMulti = {
-      participants: quiz.participants,
+    const multiEntry = {
       streak: quiz.multi.currentStreak,
       averageTime: quiz.multi.averageTime,
+      participants: quiz.participants,
       date: now
     }
 
+    // Must update LBs first, as it uses old dates from old PBs as keys for LB entries
+    const lbKeySolo = pbStreaksSolo[userId][mapName]?.date || -1;
+    let lbKeysMulti = quiz.participants.map(p => pbStreaksMulti[p][mapName]?.date || -1);
+
     const oldLbEntrySolo = lbStreaksSolo[mapName][lbKeySolo];
     if (lbKeySolo === -1) {
-      lbStreaksSolo[mapName][now] = lbEntrySolo;
+      lbStreaksSolo[mapName][now] = soloEntry;
     } else if (
       quiz.solo.currentStreak > oldLbEntrySolo.streak
       || (
@@ -311,57 +311,7 @@ export async function handleGuess(message, guess) {
       )
     ) {
       delete lbStreaksSolo[mapName][lbKeySolo];
-      lbStreaksSolo[mapName][now] = lbEntrySolo;
-    }
-
-    // Goal: every entry must be at least one participants PB
-    // and each participant's PB must appear
-    // Algorithm: find indices where the new streak is a PB,
-    // If it is at least one person's first streak: insert immediately and return
-    // If it is somebody's PB:
-    //   check if you can delete old PBs by checking that nobody else's PB is the old PB
-    //   insert the new PB in order
-    // If it is nobody's PB:
-    //   do nothing
-
-    let save;
-    if (lbKeysMulti.includes(-1)) {
-      lbStreaksMulti[mapName][now] = lbEntryMulti;
-      lbKeysMulti = lbKeysMulti.filter(k => k !== -1);
-      save = true;
-    } else save = false;
-
-    let deletions = [];
-    for (const key of lbKeysMulti) {
-      if (deletions.includes(key)) continue;
-      // Check if it's better than the current PB
-      let canDelete = true;
-      const pbEntry = lbStreaksMulti[mapName][key]; // Current place on LB
-      if (
-        quiz.multi.currentStreak > pbEntry.streak
-        || (
-          quiz.multi.currentStreak === pbEntry.streak
-          && quiz.multi.averageTime < pbEntry.averageTime
-        )
-      ) {
-        save = true;
-        // Only try to delete if it's better than old PB
-        // Check if it's somebody's PB, if so don't delete
-        for (const p of pbEntry.participants) {
-          if (quiz.participants.includes(p)) continue;
-          if (pbStreaksMulti[p][mapName].date === key) {
-            canDelete = false; break;
-          }
-        }
-        if (canDelete) deletions.push(key);
-      }
-    }
-
-    if (save) {
-      for (const key of deletions) {
-        delete lbStreaksMulti[mapName][key];
-      }
-      lbStreaksMulti[mapName][now] = lbEntryMulti;
+      lbStreaksSolo[mapName][now] = soloEntry;
     }
 
     // TODO: effficient insertion with binary search
@@ -373,14 +323,68 @@ export async function handleGuess(message, guess) {
         return a.averageTime - b.averageTime;
       })
     );
-    lbStreaksMulti[mapName] = Object.fromEntries(
-      Object.entries(lbStreaksMulti[mapName]).sort(([,a], [,b]) => {
-        if (b.streak !== a.streak) {
-          return b.streak - a.streak;
+
+    // Goal: every entry must be at least one participants PB
+    // and each participant's PB must appear
+    // Algorithm: find indices where the new streak is a PB,
+    // If it is at least one person's first streak: insert immediately and return
+    // If it is somebody's PB:
+    //   check if you can delete old PBs by checking that nobody else's PB is the old PB
+    //   insert the new PB in order
+    // If it is nobody's PB:
+    //   do nothing
+
+    if (quiz.participants.length > 1) {
+      let save;
+      if (lbKeysMulti.includes(-1)) {
+        lbStreaksMulti[mapName][now] = multiEntry;
+        lbKeysMulti = lbKeysMulti.filter(k => k !== -1);
+        save = true;
+      } else save = false;
+
+      let deletions = [];
+      for (const key of lbKeysMulti) {
+        if (deletions.includes(key)) continue;
+        // Check if it's better than the current PB
+        let canDelete = true;
+        const pbEntry = lbStreaksMulti[mapName][key]; // Current place on LB
+        if (
+          quiz.multi.currentStreak > pbEntry.streak
+          || (
+            quiz.multi.currentStreak === pbEntry.streak
+            && quiz.multi.averageTime < pbEntry.averageTime
+          )
+        ) {
+          save = true;
+          // Only try to delete if it's better than old PB
+          // Check if it's somebody's PB, if so don't delete
+          for (const p of pbEntry.participants) {
+            if (quiz.participants.includes(p)) continue;
+            if (pbStreaksMulti[p][mapName].date === key) {
+              canDelete = false; break;
+            }
+          }
+          if (canDelete) deletions.push(key);
         }
-        return a.averageTime - b.averageTime;
-      })
-    );
+      }
+
+      if (save) {
+        for (const key of deletions) {
+          delete lbStreaksMulti[mapName][key];
+        }
+        lbStreaksMulti[mapName][now] = multiEntry;
+      }
+
+      lbStreaksMulti[mapName] = Object.fromEntries(
+        Object.entries(lbStreaksMulti[mapName]).sort(([,a], [,b]) => {
+          if (b.streak !== a.streak) {
+            return b.streak - a.streak;
+          }
+          return a.averageTime - b.averageTime;
+        })
+      );
+      saveJsonFile(MULTI_LB_STREAK_PATH, lbStreaksMulti);
+    }
 
     if (
       !pbStreaksSolo[userId][mapName]
@@ -389,36 +393,26 @@ export async function handleGuess(message, guess) {
         quiz.solo.currentStreak === pbStreaksSolo[userId][mapName].streak
         && quiz.solo.averageTime < pbStreaksSolo[userId][mapName].averageTime
       )
-    ) {
-      pbStreaksSolo[userId][mapName] = {
-        streak: quiz.solo.currentStreak,
-        averageTime: quiz.solo.averageTime,
-        date: now,
-      };
-    }
+    ) pbStreaksSolo[userId][mapName] = soloEntry
 
-    for (const p of quiz.participants) {
-      if (
-        !pbStreaksMulti[p][mapName]
-        || quiz.multi.currentStreak > pbStreaksMulti[p][mapName].streak
-        || (
-          quiz.multi.currentStreak === pbStreaksMulti[p][mapName].streak
-          && quiz.multi.averageTime < pbStreaksMulti[p][mapName].averageTime
-        )
-      ) {
-        pbStreaksMulti[p][mapName] = {
-          streak: quiz.multi.currentStreak,
-          averageTime: quiz.multi.averageTime,
-          participants: quiz.participants,
-          date: now,
-        };
+    if (quiz.participants.length > 1) {
+      for (const p of quiz.participants) {
+        if (
+          !pbStreaksMulti[p][mapName]
+          || quiz.multi.currentStreak > pbStreaksMulti[p][mapName].streak
+          || (
+            quiz.multi.currentStreak === pbStreaksMulti[p][mapName].streak
+            && quiz.multi.averageTime < pbStreaksMulti[p][mapName].averageTime
+          )
+        ) {
+          pbStreaksMulti[p][mapName] = multiEntry;
+        }
       }
+      saveJsonFile(MULTI_PB_STREAK_PATH, pbStreaksMulti);
     }
 
     saveJsonFile(SOLO_PB_STREAK_PATH, pbStreaksSolo);
     saveJsonFile(SOLO_LB_STREAK_PATH, lbStreaksSolo);
-    saveJsonFile(MULTI_PB_STREAK_PATH, pbStreaksMulti);
-    saveJsonFile(MULTI_LB_STREAK_PATH, lbStreaksMulti);
 
     const flag = countryInfo?.flag || '';
 
@@ -430,7 +424,7 @@ export async function handleGuess(message, guess) {
           .addFields(
             { name: 'Subdivision', value: `${subdivision}`, inline: true },
             { name: 'Time This Round', value: formatTime(quizTime), inline: true },
-            { name: 'Average Total Time', value: formatTime(quiz.multi.averageTime), inline: true },
+            { name: 'Average Time', value: formatTime(quiz.multi.averageTime), inline: true },
             { name: 'Average Solo Time', value: formatTime(quiz.solo.averageTime), inline: true },
             { name: 'Total Streak', value: `${quiz.multi.currentStreak}`, inline: true },
             { name: 'Solo Streak', value: `${quiz.solo.currentStreak}`, inline: true },
@@ -474,8 +468,9 @@ export async function handleGuess(message, guess) {
             { name: 'Subdivision', value: `${subdivision}`, inline: true },
             { name: 'Time This Round', value: formatTime(quizTime), inline: true },
             { name: 'Average Time', value: formatTime(quiz.multi.averageTime), inline: true },
-            { name: 'Final Streak', value: `${quiz.multi.currentStreak}`, inline: true },
-            { name: 'Participants', value: participantsList, inline: false },
+            { name: 'Average Solo Time', value: formatTime(quiz.solo.averageTime), inline: true },
+            { name: 'Total Streak', value: `${quiz.multi.currentStreak}`, inline: true },
+            { name: 'Solo Streak', value: `${quiz.solo.currentStreak}`, inline: true },
             {
               name: "Exact Location",
               value: `[Click here to view on Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}&heading=0&pitch=0)`
@@ -655,7 +650,7 @@ export async function showLeaderboard(interaction, inputName, type) {
   if (type === 'solo') {
     const mapLb = lbStreaksSolo[mapName] || {};
 
-    if (mapLb.length === 0) {
+    if (Object.keys(mapLb).length === 0) {
       await interaction.reply(`No solo leaderboard data for map "${mapName}" yet. Be the first to set a record!`);
       return;
     }
@@ -671,7 +666,7 @@ export async function showLeaderboard(interaction, inputName, type) {
     topPlayers.forEach((entry, index) => {
       const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
       const time = formatTime(entry.averageTime);
-      description += `${medal} **<@${entry.userId}>** - Streak: ${entry.streak} | Average Time: ${time} | Date: ${getDay(entry.date)}\n`;
+      description += `${medal} **<@${entry.participants[0]}>** - Streak: ${entry.streak} | Average Time: ${time} | Date: ${getDay(entry.date)}\n`;
     });
 
     embed.setDescription(description);
@@ -679,7 +674,7 @@ export async function showLeaderboard(interaction, inputName, type) {
   } else if (type === 'multi') {
     const mapLb = lbStreaksMulti[mapName] || {};
 
-    if (mapLb.length === 0) {
+    if (Object.keys(mapLb).length === 0) {
       await interaction.reply(`No multi leaderboard data for map "${mapName}" yet. Be the first to set a record!`);
       return;
     }
@@ -701,14 +696,48 @@ export async function showLeaderboard(interaction, inputName, type) {
 
     embed.setDescription(description);
     await interaction.reply({ embeds: [embed] });
+  } else if (type === 'combined') {
+    const mapLbSolo = lbStreaksSolo[mapName] || {};
+    const mapLbMulti = lbStreaksMulti[mapName] || {};
+
+    let combinedLb = Object.values(mapLbSolo).concat(Object.values(mapLbMulti));
+    if (combinedLb.length === 0) {
+      await interaction.reply(`No leaderboard data for map "${mapName}" yet. Be the first to set a record!`);
+      return;
+    }
+
+    combinedLb = combinedLb.sort((a, b) => {
+      if (b.streak !== a.streak) {
+        return b.streak - a.streak;
+      }
+      return a.averageTime - b.averageTime;
+    });
+
+    const embed = new EmbedBuilder()
+      .setTitle(`🏆 ${mapName} - Combined leaderboard`)
+      .setColor('#f1c40f')
+      .setFooter({ text: `Updated: ${getDay()}` });
+
+    const topPlayers = combinedLb.slice(0, 10);
+
+    let description = '';
+    topPlayers.forEach((entry, index) => {
+      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+      const time = formatTime(entry.averageTime);
+      description += `${medal} ${userList(entry.participants)}\n`;
+      description += `Streak: ${entry.streak} | Average Time: ${time} | Date: ${getDay(entry.date)}\n\n`;
+    });
+
+    embed.setDescription(description);
+    await interaction.reply({ embeds: [embed] });
   }
 }
 
 export async function showPersonalStats(interaction, user, type) {
   if (type === 'solo') {
-    const userStats = pbStreaksSolo[user.id] || [];
+    const userStats = pbStreaksSolo[user.id] || {};
 
-    if (userStats.length === 0) {
+    if (Object.keys(userStats).length === 0) {
       return interaction.reply(`${user.username} doesn't have a solo streak yet.`);
     }
 
@@ -737,9 +766,9 @@ export async function showPersonalStats(interaction, user, type) {
     embed.setDescription(description);
     await interaction.reply({ embeds: [embed] });
   } else if (type === 'multi') {
-    const userStats = pbStreaksMulti[user.id] || [];
+    const userStats = pbStreaksMulti[user.id] || {};
 
-    if (userStats.length === 0) {
+    if (Object.keys(userStats).length === 0) {
       return interaction.reply(`${user.username} doesn't have a multi streak yet.`);
     }
 

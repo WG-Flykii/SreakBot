@@ -23,10 +23,12 @@ Note that most commands are text-based for speed, but admin commands often use s
 | `!play <map>` | Start a new quiz with the specified map |
 | `!g <country>` | Submit your guess for the current quiz |
 | `!maps` | Show all available maps |
-| `!stats` | Show your personal stats and records |
 | `!invite <@user>` | Invite a user to your private thread *(only works in threads)* |
 | `!kick <@user>` | Kick a user from your private thread *(only works in threads)* |
 | `!map/!locs/!locations/!distribution <map>` | Show the distribution map for a specific map |
+| `!stop` | Stop the current quiz and show the final streak |
+| `/stats <type> <@user>` | Show the personal stats for a user (solo or multi) |
+| `/leaderboard <type> <map>` | Show the leaderboard for a map (solo or multi) |
 
 ### **Admins**
 | Command | Description |

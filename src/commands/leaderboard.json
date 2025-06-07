@@ -16,7 +16,11 @@
 				{
 					"name": "multi",
 					"value": "multi"
-				}
+				},
+                {
+                    "name": "combined",
+                    "value": "combined"
+                }
 			]
 		},
         {
