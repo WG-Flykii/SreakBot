@@ -738,7 +738,7 @@ export async function showLeaderboard(interaction, inputName, type) {
 
 export async function showPersonalStats(interaction, user, type) {
   if (type === 'solo') {
-    const userStats = pbStreaksSolo[user.id] || {};
+    let userStats = pbStreaksSolo[user.id] || {};
 
     if (Object.keys(userStats).length === 0) {
       return interaction.reply(`${user.username} doesn't have a solo streak yet.`);
@@ -748,28 +748,46 @@ export async function showPersonalStats(interaction, user, type) {
       .setTitle(`📊 Solo stats for ${(await client.users.fetch(user.id)).username}`)
       .setColor('#9b59b6');
 
-    let description = '';
     for (const [mapName, stats] of Object.entries(userStats)) {
-      const formattedTime = formatTime(stats.averageTime);
-      let position = 'not ranked';
+      let position = -1;
       if (lbStreaksSolo[mapName]) {
         const userPos = findObjectIndex(
           lbStreaksSolo[mapName],
-          String(pbStreaksSolo[user.id][mapName].date)
+          String(stats.date)
         );
         if (userPos >= 0) {
-          position = `#${userPos + 1}`;
+          position = userPos + 1;
         }
       }
+      userStats[mapName]['position'] = position;
+    }
 
+    userStats = Object.fromEntries(
+      Object.entries(userStats).sort(([,a], [,b]) => {
+        if (a.position === -1 && b.position === -1) {
+          return a.averageTime - b.averageTime;
+        }
+        if (a.position === -1) return 1;
+        if (b.position === -1) return -1;
+        if (a.position !== b.position) {
+          return a.position - b.position;
+        }
+        return a.averageTime - b.averageTime;
+      })
+    );
+
+    let description = '';
+    for (const [mapName, stats] of Object.entries(userStats)) {
+      const formattedTime = formatTime(stats.averageTime);
+      const positionString = stats.position === -1 ? 'not ranked' : `#${stats.position}`;
       description += `**${mapName}**\n`;
-      description += `Best Streak: ${stats.streak} | Time: ${formattedTime} | Rank: ${position} | Date: ${getDay(stats.date)}\n\n`;
+      description += `Rank: ${positionString} | Best Streak: ${stats.streak} | Time: ${formattedTime} | Date: ${getDay(stats.date)}\n\n`;
     }
 
     embed.setDescription(description);
     await interaction.reply({ embeds: [embed] });
   } else if (type === 'multi') {
-    const userStats = pbStreaksMulti[user.id] || {};
+    let userStats = pbStreaksMulti[user.id] || {};
 
     if (Object.keys(userStats).length === 0) {
       return interaction.reply(`${user.username} doesn't have a multi streak yet.`);
@@ -779,23 +797,41 @@ export async function showPersonalStats(interaction, user, type) {
       .setTitle(`📊 Multi stats for ${(await client.users.fetch(user.id)).username}`)
       .setColor('#9b59b6');
 
-    let description = '';
     for (const [mapName, stats] of Object.entries(userStats)) {
-      const formattedTime = formatTime(stats.averageTime);
-      let position = 'not ranked';
+      let position = -1;
       if (lbStreaksMulti[mapName]) {
         const userPos = findObjectIndex(
           lbStreaksMulti[mapName],
-          String(pbStreaksMulti[user.id][mapName].date)
+          String(stats.date)
         );
         if (userPos >= 0) {
-          position = `#${userPos + 1}`;
+          position = userPos + 1;
         }
       }
+      userStats[mapName]['position'] = position;
+    }
 
-      description += `**${mapName}**\n`
+    userStats = Object.fromEntries(
+      Object.entries(userStats).sort(([,a], [,b]) => {
+        if (a.position === -1 && b.position === -1) {
+          return a.averageTime - b.averageTime;
+        }
+        if (a.position === -1) return 1;
+        if (b.position === -1) return -1;
+        if (a.position !== b.position) {
+          return a.position - b.position;
+        }
+        return a.averageTime - b.averageTime;
+      })
+    );
+
+    let description = '';
+    for (const [mapName, stats] of Object.entries(userStats)) {
+      const formattedTime = formatTime(stats.averageTime);
+      const positionString = stats.position === -1 ? 'not ranked' : `#${stats.position}`;
+      description += `**${mapName}**\n`;
       description += `Participants: ${userList(stats.participants)}\n`;
-      description += `Best Streak: ${stats.streak} | Time: ${formattedTime} | Rank: ${position} | Date: ${getDay(stats.date)}\n\n`;
+      description += `Rank: ${positionString} | Best Streak: ${stats.streak} | Time: ${formattedTime} | Date: ${getDay(stats.date)}\n\n`;
     }
 
     embed.setDescription(description);
