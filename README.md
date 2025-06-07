@@ -1,8 +1,7 @@
 # 🌍 **StreakBot**
 
 Made by **Flykii (@flykii)** for the [WorldGuessr Discord](https://discord.gg/nfebQwes6a)
-Main development happens in the [Testing Discord](https://discord.gg/HpNfVY9kPe)
-Play Worldguessr at https://worldguessr.com
+Play Worldguessr at https://worldguessr.com.
 Feel free to use it on your own server!
 
 Test your geography knowledge with country streak challenges based on real Street View locations!  
