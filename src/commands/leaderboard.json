@@ -1,0 +1,33 @@
+{
+	"name": "leaderboard",
+	"type": 1,
+	"description": "Shows the leaderboard for a map",
+    "options": [
+		{
+			"name": "type",
+			"description": "Solo or multi streaks",
+			"type": 3,
+			"required": true,
+			"choices": [
+				{
+					"name": "solo",
+					"value": "solo"
+				},
+				{
+					"name": "multi",
+					"value": "multi"
+				},
+                {
+                    "name": "combined",
+                    "value": "combined"
+                }
+			]
+		},
+        {
+			"name": "map",
+			"description": "The name of the map (you may enter an alias)",
+			"type": 3,
+			"required": true
+		}
+    ]
+}

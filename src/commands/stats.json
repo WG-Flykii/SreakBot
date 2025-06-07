@@ -1,0 +1,29 @@
+{
+	"name": "stats",
+	"type": 1,
+	"description": "Shows the statisfics for an user",
+    "options": [
+		{
+			"name": "type",
+			"description": "Solo or multi streaks",
+			"type": 3,
+			"required": true,
+			"choices": [
+				{
+					"name": "solo",
+					"value": "solo"
+				},
+				{
+					"name": "multi",
+					"value": "multi"
+				}
+			]
+		},
+        {
+			"name": "user",
+			"description": "The user you want to check",
+			"type": 6,
+			"required": true
+		}
+    ]
+}

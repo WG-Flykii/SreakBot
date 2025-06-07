@@ -1,6 +1,6 @@
 // List of aliases for every countries and terrritories
 // Not stored in a JSON, as it is intended to be unchanged
-const COUNTRIES_DATA = {
+export const COUNTRIES = {
     // #region Africa
     "angola": {
         "flag": "🇦🇴",
@@ -1053,15 +1053,20 @@ const COUNTRIES_DATA = {
     // #endregion
 }
 
-export const COUNTRIES = {};
-Object.keys(COUNTRIES_DATA).forEach(country => {
-    COUNTRIES[country] = COUNTRIES_DATA[country];
-});
-
 export const COUNTRY_LOOKUP = {};
 Object.keys(COUNTRIES).forEach(country => {
   COUNTRY_LOOKUP[country.toLowerCase()] = country;
-  COUNTRIES[country].aliases.forEach(alias => {
+  COUNTRIES[country].aliases.forEach(async alias => {
     COUNTRY_LOOKUP[alias.toLowerCase()] = country;
   });
+});
+
+const COUNTRY_MAPS = [
+    'US',
+    'MX',
+    'CA',
+    'FR'
+];
+COUNTRY_MAPS.forEach(domain => {
+    COUNTRIES[COUNTRY_LOOKUP[domain.toLowerCase()]]['domain'] = domain;
 });

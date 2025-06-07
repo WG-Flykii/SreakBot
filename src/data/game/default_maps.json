@@ -1,71 +1,67 @@
 {
   "A Balanced World": {
+    "type": "world",
     "aliases": [
-      "abw",
-      "a balanced world"
-    ],
-    "distribution": "abaf_locations.webp"
+      "abw"
+    ]
   },
   "An Arbitrary World": {
+    "type": "world",
     "aliases": [
-      "aaw",
-      "an arbitrary world"
-    ],
-    "distribution": "aaw_locations.webp"
+      "aaw"
+    ]
   },
   "A Pro World": {
+    "type": "world",
     "aliases": [
-      "apw",
-      "a pro world"
-    ],
-    "distribution": "apw_locations.webp"
+      "apw"
+    ]
   },
   "An Arbitrary Rural World": {
+    "type": "world",
     "aliases": [
-      "aarw",
-      "an arbitrary rural world"
-    ],
-    "distribution": "aarw_locations.webp"
+      "aarw"
+    ]
   },
   "A Balanced South America": {
+    "type": "world",
     "aliases": [
-      "absa",
-      "a balanced south america"
+      "absa"
     ],
     "distribution": "absa_locations.webp"
   },
   "A Balanced Europe": {
+    "type": "world",
     "aliases": [
-      "abe",
-      "a balanced europe"
+      "abe"
     ],
     "distribution": "abe_locations.webp"
   },
   "A Balanced North America": {
+    "type": "world",
     "aliases": [
-      "abna",
-      "a balanced north america"
+      "abna"
     ],
     "distribution": "abna_locations.webp"
   },
   "A Balanced Asia": {
+    "type": "world",
     "aliases": [
-      "aba",
-      "a balanced asia"
+      "aba"
     ],
     "distribution": "aba_locations.webp"
   },
   "A Balanced Africa": {
+    "type": "world",
     "aliases": [
-      "abf",
-      "a balanced africa"
+      "abaf"
     ],
     "distribution": "abaf_locations.webp"
   },
   "A Balanced Oceania": {
+    "type": "world",
     "aliases": [
-      "abo",
-      "a balanced oceania"
+      "abo"
     ],
     "distribution": "abo_locations.webp"
   }

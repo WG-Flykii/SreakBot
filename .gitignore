@@ -1,4 +1,12 @@
 node_modules
 .env
-*data
+src/data/user
 *maps_data.json
+
+src/assets/images/*
+!src/assets/images/aba_locations.webp
+!src/assets/images/abaf_locations.webp
+!src/assets/images/abe_locations.webp
+!src/assets/images/abna_locations.webp
+!src/assets/images/abo_locations.webp
+!src/assets/images/absa_locations.webp
