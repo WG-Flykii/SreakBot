@@ -114,12 +114,13 @@ export async function getCountryFromCoordinates(lat, lng) {
       address?.administrative ||
       address?.municipality ||
       address?.district ||
+      address?.city_district || // Ahead of city for microstates
+      address?.suburb ||
       address?.city ||
       address?.town ||
       address?.village ||
       address?.locality ||
       address?.borough ||
-      address?.suburb ||
       address?.neighbourhood ||
       address?.hamlet ||
       address?.ISO3166_2_lvl4 ||
