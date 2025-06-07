@@ -3,29 +3,25 @@
     "type": "world",
     "aliases": [
       "abw"
-    ],
-    "distribution": "abaf_locations.webp"
+    ]
   },
   "An Arbitrary World": {
     "type": "world",
     "aliases": [
       "aaw"
-    ],
-    "distribution": "aaw_locations.webp"
+    ]
   },
   "A Pro World": {
     "type": "world",
     "aliases": [
       "apw"
-    ],
-    "distribution": "apw_locations.webp"
+    ]
   },
   "An Arbitrary Rural World": {
     "type": "world",
     "aliases": [
       "aarw"
-    ],
-    "distribution": "aarw_locations.webp"
+    ]
   },
   "A Balanced South America": {
     "type": "world",

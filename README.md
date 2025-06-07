@@ -69,11 +69,4 @@ CLIENT_ID=
 ## **Development**
 1. Run `npm install`.
 2. Register slash commands with `node src/register_commands.js`. Note that this does not need to be run often, so it is in a separate file.
-3. Run `node src/streakbot.js` to start the bot. If you want hot reload, use `npm run dev`.
-
----
-## **Usage**
-1. Invite the bot to your server.
-2. Run `/create-channels` to create the channels for the bot (recommended).
-3. Run `/setup` to configure the bot channels.
-4. Have fun with developing and playing!
+3. Run `node src/streakbot.js` to start the bot. If you want hot reload with nodemon, use `npm run dev`.
