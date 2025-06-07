@@ -92,7 +92,7 @@ export async function getCountryFromCoordinates(lat, lng) {
     return locationCache[cacheKey];
   }
 
-  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=5&addressdetails=1`;
+  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`;
 
   try {
     const response = await axios.get(url, {

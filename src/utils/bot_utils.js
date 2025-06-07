@@ -112,6 +112,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
     return;
   }
 
+  let loadingMessage;
   try {
     let selectedMapName = null;
 
@@ -147,7 +148,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
     };
 
     if (!quizzesByChannel[channel.id]) return;
-    const loadingMessage = await channel.send({
+    loadingMessage = await channel.send({
       embeds: [
         new EmbedBuilder()
           .setTitle('🌍 Loading Quiz...')
@@ -222,7 +223,9 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       delete quizzesByChannel[channel.id];
       return;
     }
-    await channel.send(`An error occurred while creating the quiz. Using ${quizzesByChannel[channel.id].retries} out of ${locRetries} retries.`);
+    const errorMessage = `An error occurred while creating the quiz. Using ${quizzesByChannel[channel.id].retries} out of ${locRetries} retries.`
+    if (loadingMessage) await loadingMessage.edit({ content: errorMessage, embeds: [] });
+    else await channel.send(errorMessage);
     newLoc(channel, quizId, mapName, userId);
   }
 }
