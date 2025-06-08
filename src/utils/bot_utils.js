@@ -641,10 +641,17 @@ export function initializeThreadCleanup() {
 
 export async function showLeaderboard(interaction, inputName, type) {
   const places = 10;
-  const mapName = mapNames.find(m => m.toLowerCase() === inputName.toLowerCase());
-  if (!mapName) {
-    await interaction.reply(`Map "${inputName}" not found. Available maps: ${mapNames.join(', ')}`);
-    return;
+  let mapName = mapAliases[inputName.toLowerCase()] || inputName;
+  mapName = mapNames.find(m => m.toLowerCase() === mapName.toLowerCase());
+
+  if (!mapName || !mapNames.includes(mapName)) {
+    const similarMap = mapNames.find(m => m.toLowerCase() === normalizedInput);
+    if (similarMap) {
+      mapName = similarMap;
+    } else {
+      await interaction.reply(`Map "${inputName}" not found. Available maps: ${mapNames.join(', ')}`);
+      return;
+    }
   }
 
   let mapLb;
