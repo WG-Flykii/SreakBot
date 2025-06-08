@@ -191,7 +191,9 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
     }
 
     if (!quizzesByChannel[channel.id]) return;
+    const start = Date.now();
     const screenshotBuffer = await takeScreenshot(embedUrl, channel.id);
+    console.log('Screenshot took', Date.now()-start);
 
     quizzesByChannel[channel.id].country = locationInfo.country;
     quizzesByChannel[channel.id].subdivision = locationInfo.subdivision;
@@ -219,7 +221,8 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
     console.error(`Error starting quiz: ${error}`);
     quizzesByChannel[channel.id].retries++;
     if (quizzesByChannel[channel.id].retries > locRetries) {
-      await channel.send(`Max retries reached. Stopping quiz.`);
+      if (loadingMessage) await loadingMessage.edit({ content: `Max retries reached. Stopping quiz.`, embeds: [] });
+      else await channel.send(`Max retries reached. Stopping quiz.`);
       delete quizzesByChannel[channel.id];
       return;
     }

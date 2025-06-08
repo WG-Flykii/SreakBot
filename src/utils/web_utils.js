@@ -15,7 +15,7 @@ export const mapCache = {};
 // Initializes resources
 export async function initializeResources() {
   try {
-    await getBrowser();
+    await getPage();
     console.log("Initialized browser");
 
     if (typeof preloadLocationCache === 'function') {
@@ -33,12 +33,12 @@ export async function initializeResources() {
   }
 }
 
-export async function getBrowser() {
+export async function getPage() {
   if (isInitializingBrowser) {
     while (isInitializingBrowser) {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-    return browserPool;
+    return browserPage;
   }
 
   const expired = !browserPool || (Date.now() - browserStartTime > MAX_BROWSER_AGE);
@@ -73,16 +73,16 @@ export async function getBrowser() {
 
       browserPage = await browserPool.newPage();
       await browserPage.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
-
+      await browserPage.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
     } catch (err) {
       console.error("Failed to launch browser:", err);
       browserPool = null;
     }
 
     isInitializingBrowser = false;
-  }
+  } 
 
-  return browserPool;
+  return browserPage;
 }
 
 export async function getCountryFromCoordinates(lat, lng) {
@@ -135,6 +135,8 @@ export async function getCountryFromCoordinates(lat, lng) {
       else if (subdivision.toLowerCase().includes('american samoa')) country = 'american samoa';
       else if (subdivision.toLowerCase().includes('northern mariana islands')) country = 'northern mariana islands';
     }
+
+    if (subdivision?.toLowerCase() === 'greenland') country = 'greenland';
 
     const result = {
       country: country?.toLowerCase() || 'Unknown location',
@@ -230,22 +232,8 @@ export async function takeScreenshot(url, channelId) {
   let newPageCreated = false;
 
   try {
-    const browser = await getBrowser();
-
-    page = await browser.newPage();
+    const page = await getPage();
     newPageCreated = true;
-
-    await page.setViewport({
-      width: 1280,
-      height: 720,
-      deviceScaleFactor: 1
-    });
-
-    const pageTimeout = setTimeout(() => {
-      console.log("Global timeout exceeded, attempting screenshot anyway");
-    }, 4000);
-
-    await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
 
     await page.evaluateOnNewDocument(() => {
       window._resourcesLoaded = false;
@@ -260,9 +248,10 @@ export async function takeScreenshot(url, channelId) {
 
     console.log(`Navigating to URL: ${url} for channel ${channelId}`);
     await page.goto(url, {
-      waitUntil: 'networkidle0',
+      waitUntil: 'load',
       timeout: 50000
     });
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     await page.mouse.move(640, 360);
     await page.mouse.down();
@@ -278,9 +267,8 @@ export async function takeScreenshot(url, channelId) {
       console.log("No canvas found, attempting to capture anyway");
     }
 
-    const startTime = Date.now();
+    /*
     let canProceed = false;
-
     while (!canProceed && (Date.now() - startTime < 3000)) {
       canProceed = await page.evaluate(() => {
         const canvas = document.querySelector('canvas');
@@ -305,11 +293,7 @@ export async function takeScreenshot(url, channelId) {
       if (!canProceed) {
         await new Promise(resolve => setTimeout(resolve, 1500));
       }
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    clearTimeout(pageTimeout);
+    }*/
 
     const screenshotBuffer = await page.screenshot({
       fullPage: false,
