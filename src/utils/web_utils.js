@@ -315,7 +315,6 @@ export async function takeScreenshot(url, channelId) {
       .jpeg({ quality: 65 })
       .toBuffer();
 
-    page.close();
     return optimizedBuffer;
   } catch (error) {
     console.error(`Error taking screenshot for channel ${channelId}: ${error.message}`);
