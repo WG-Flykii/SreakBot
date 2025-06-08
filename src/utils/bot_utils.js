@@ -640,206 +640,119 @@ export function initializeThreadCleanup() {
 }
 
 export async function showLeaderboard(interaction, inputName, type) {
-  const normalizedInput = inputName?.toLowerCase();
-  let mapName = mapAliases[normalizedInput] || inputName;
-
-  if (!mapName || !mapNames.includes(mapName)) {
-    const similarMap = mapNames.find(m => m.toLowerCase() === normalizedInput);
-    if (similarMap) {
-      mapName = similarMap;
-    } else {
-      await interaction.reply(`Map "${inputName}" not found. Available maps: ${mapNames.join(', ')}`);
-      return;
-    }
+  const places = 10;
+  const mapName = mapNames.find(m => m.toLowerCase() === inputName.toLowerCase());
+  if (!mapName) {
+    await interaction.reply(`Map "${inputName}" not found. Available maps: ${mapNames.join(', ')}`);
+    return;
   }
 
-  if (type === 'solo') {
-    const mapLb = lbStreaksSolo[mapName] || {};
-
-    if (Object.keys(mapLb).length === 0) {
-      await interaction.reply(`No solo leaderboard data for map "${mapName}" yet. Be the first to set a record!`);
-      return;
-    }
-
-    const embed = new EmbedBuilder()
-      .setTitle(`🏆 ${mapName} - Solo leaderboard`)
-      .setColor('#f1c40f')
-      .setFooter({ text: `Updated: ${getDay()}` });
-
-    const topPlayers = Object.values(mapLb).slice(0, 10);
-
-    let description = '';
-    topPlayers.forEach((entry, index) => {
-      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-      const time = formatTime(entry.averageTime);
-      description += `${medal} **<@${entry.participants[0]}>** - Streak: ${entry.streak} | Average Time: ${time} | Date: ${getDay(entry.date)}\n`;
-    });
-
-    embed.setDescription(description);
-    await interaction.reply({ embeds: [embed] });
+  let mapLb;
+  if (type === 'solo'){
+    mapLb = Object.values(lbStreaksSolo[mapName]).slice(0, places) || [];
   } else if (type === 'multi') {
-    const mapLb = lbStreaksMulti[mapName] || {};
-
-    if (Object.keys(mapLb).length === 0) {
-      await interaction.reply(`No multi leaderboard data for map "${mapName}" yet. Be the first to set a record!`);
-      return;
-    }
-
-    const embed = new EmbedBuilder()
-      .setTitle(`🏆 ${mapName} - Multi leaderboard`)
-      .setColor('#f1c40f')
-      .setFooter({ text: `Updated: ${getDay()}` });
-
-    const topPlayers = Object.values(mapLb).slice(0, 10);
-
-    let description = '';
-    topPlayers.forEach((entry, index) => {
-      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-      const time = formatTime(entry.averageTime);
-      description += `${medal} ${userList(entry.participants)}\n`;
-      description += `Streak: ${entry.streak} | Average Time: ${time} | Date: ${getDay(entry.date)}\n\n`;
-    });
-
-    embed.setDescription(description);
-    await interaction.reply({ embeds: [embed] });
+    mapLb = Object.values(lbStreaksMulti[mapName]).slice(0, places) || [];
   } else if (type === 'combined') {
-    const mapLbSolo = lbStreaksSolo[mapName] || {};
-    const mapLbMulti = lbStreaksMulti[mapName] || {};
+    const mapLbSolo = Object.values(lbStreaksSolo[mapName]).slice(0, places) || [];
+    const mapLbMulti = Object.values(lbStreaksMulti[mapName]).slice(0, places) || [];
+    mapLb = mapLbSolo.concat(mapLbMulti);
+  }
 
-    let combinedLb = Object.values(mapLbSolo).concat(Object.values(mapLbMulti));
-    if (combinedLb.length === 0) {
-      await interaction.reply(`No leaderboard data for map "${mapName}" yet. Be the first to set a record!`);
-      return;
-    }
+  if (mapLb.length === 0) {
+    await interaction.reply(`No ${type} leaderboard data for map "${mapName}" yet. Be the first to set a record!`);
+    return;
+  }
 
-    combinedLb = combinedLb.sort((a, b) => {
+  if (type === 'combined') {
+    mapLb = mapLb.sort((a, b) => {
       if (b.streak !== a.streak) {
         return b.streak - a.streak;
       }
       return a.averageTime - b.averageTime;
-    });
-
-    const embed = new EmbedBuilder()
-      .setTitle(`🏆 ${mapName} - Combined leaderboard`)
-      .setColor('#f1c40f')
-      .setFooter({ text: `Updated: ${getDay()}` });
-
-    const topPlayers = combinedLb.slice(0, 10);
-
-    let description = '';
-    topPlayers.forEach((entry, index) => {
-      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-      const time = formatTime(entry.averageTime);
-      description += `${medal} ${userList(entry.participants)}\n`;
-      description += `Streak: ${entry.streak} | Average Time: ${time} | Date: ${getDay(entry.date)}\n\n`;
-    });
-
-    embed.setDescription(description);
-    await interaction.reply({ embeds: [embed] });
+    }).slice(0, places);
   }
+
+  const embed = new EmbedBuilder()
+    .setTitle(`🏆 ${mapName} - ${type[0].toUpperCase() + type.slice(1)} leaderboard`)
+    .setColor('#f1c40f')
+    .setFooter({ text: `Updated: ${getDay()}` });
+  
+  let description = "";
+  mapLb.forEach((entry, index) => {
+    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+    const time = formatTime(entry.averageTime);
+    const streakData = `Streak: ${entry.streak} | Average Time: ${time} | Date: ${getDay(entry.date)}`;
+    if (type === 'solo') {
+      description += `${medal} **<@${entry.participants[0]}>** - ${streakData}\n`;
+    } else {
+      description += `${medal} ${userList(entry.participants)}\n`;
+      description += streakData + '\n\n';
+    }
+  });
+
+  embed.setDescription(description);
+  await interaction.reply({ embeds: [embed] });
 }
 
 export async function showPersonalStats(interaction, user, type) {
+  let userStats, lbStreaks;
   if (type === 'solo') {
-    let userStats = pbStreaksSolo[user.id] || {};
-
-    if (Object.keys(userStats).length === 0) {
-      return interaction.reply(`${user.username} doesn't have a solo streak yet.`);
-    }
-
-    const embed = new EmbedBuilder()
-      .setTitle(`📊 Solo stats for ${(await client.users.fetch(user.id)).username}`)
-      .setColor('#9b59b6');
-
-    for (const [mapName, stats] of Object.entries(userStats)) {
-      let position = -1;
-      if (lbStreaksSolo[mapName]) {
-        const userPos = findObjectIndex(
-          lbStreaksSolo[mapName],
-          String(stats.date)
-        );
-        if (userPos >= 0) {
-          position = userPos + 1;
-        }
-      }
-      userStats[mapName]['position'] = position;
-    }
-
-    userStats = Object.fromEntries(
-      Object.entries(userStats).sort(([,a], [,b]) => {
-        if (a.position === -1 && b.position === -1) {
-          return a.averageTime - b.averageTime;
-        }
-        if (a.position === -1) return 1;
-        if (b.position === -1) return -1;
-        if (a.position !== b.position) {
-          return a.position - b.position;
-        }
-        return a.averageTime - b.averageTime;
-      })
-    );
-
-    let description = '';
-    for (const [mapName, stats] of Object.entries(userStats)) {
-      const formattedTime = formatTime(stats.averageTime);
-      const positionString = stats.position === -1 ? 'not ranked' : `#${stats.position}`;
-      description += `**${mapName}**\n`;
-      description += `Rank: ${positionString} | Best Streak: ${stats.streak} | Time: ${formattedTime} | Date: ${getDay(stats.date)}\n\n`;
-    }
-
-    embed.setDescription(description);
-    await interaction.reply({ embeds: [embed] });
-  } else if (type === 'multi') {
-    let userStats = pbStreaksMulti[user.id] || {};
-
-    if (Object.keys(userStats).length === 0) {
-      return interaction.reply(`${user.username} doesn't have a multi streak yet.`);
-    }
-
-    const embed = new EmbedBuilder()
-      .setTitle(`📊 Multi stats for ${(await client.users.fetch(user.id)).username}`)
-      .setColor('#9b59b6');
-
-    for (const [mapName, stats] of Object.entries(userStats)) {
-      let position = -1;
-      if (lbStreaksMulti[mapName]) {
-        const userPos = findObjectIndex(
-          lbStreaksMulti[mapName],
-          String(stats.date)
-        );
-        if (userPos >= 0) {
-          position = userPos + 1;
-        }
-      }
-      userStats[mapName]['position'] = position;
-    }
-
-    userStats = Object.fromEntries(
-      Object.entries(userStats).sort(([,a], [,b]) => {
-        if (a.position === -1 && b.position === -1) {
-          return a.averageTime - b.averageTime;
-        }
-        if (a.position === -1) return 1;
-        if (b.position === -1) return -1;
-        if (a.position !== b.position) {
-          return a.position - b.position;
-        }
-        return a.averageTime - b.averageTime;
-      })
-    );
-
-    let description = '';
-    for (const [mapName, stats] of Object.entries(userStats)) {
-      const formattedTime = formatTime(stats.averageTime);
-      const positionString = stats.position === -1 ? 'not ranked' : `#${stats.position}`;
-      description += `**${mapName}**\n`;
-      description += `Participants: ${userList(stats.participants)}\n`;
-      description += `Rank: ${positionString} | Best Streak: ${stats.streak} | Time: ${formattedTime} | Date: ${getDay(stats.date)}\n\n`;
-    }
-
-    embed.setDescription(description);
-    await interaction.reply({ embeds: [embed] });
+    userStats = pbStreaksSolo[user.id] || {};
+    lbStreaks = lbStreaksSolo || {};
+  } else {
+    userStats = pbStreaksMulti[user.id] || {};
+    lbStreaks = lbStreaksMulti || {};
   }
+
+  if (Object.keys(userStats).length === 0) {
+    return interaction.reply(`${user.username} doesn't have a ${type} streak yet.`);
+  }
+
+  for (const [mapName, stats] of Object.entries(userStats)) {
+    let position = -1;
+    if (lbStreaks[mapName]) {
+      const userPos = findObjectIndex(
+        lbStreaks[mapName],
+        String(stats.date)
+      );
+      if (userPos >= 0) {
+        position = userPos + 1;
+      }
+    }
+    userStats[mapName]['position'] = position;
+  }
+
+  userStats = Object.fromEntries(
+    Object.entries(userStats).sort(([,a], [,b]) => {
+      if (a.position === -1 && b.position === -1) {
+        return a.averageTime - b.averageTime;
+      }
+      if (a.position === -1) return 1;
+      if (b.position === -1) return -1;
+      if (a.position !== b.position) {
+        return a.position - b.position;
+      }
+      return a.averageTime - b.averageTime;
+    })
+  );
+
+  const embed = new EmbedBuilder()
+    .setTitle(`📊 ${type[0].toUpperCase() + type.slice(1)} stats for ${(await client.users.fetch(user.id)).username}`)
+    .setColor('#9b59b6');
+
+  let description = '';
+  for (const [mapName, stats] of Object.entries(userStats)) {
+    const formattedTime = formatTime(stats.averageTime);
+    const positionString = stats.position === -1 ? 'not ranked' : `#${stats.position}`;
+    description += `**${mapName}**\n`;
+    if (type === 'multi') {
+      description += `Participants: ${userList(stats.participants)}\n`;
+    }
+    description += `Rank: ${positionString} | Best Streak: ${stats.streak} | Time: ${formattedTime} | Date: ${getDay(stats.date)}\n\n`;
+  }
+
+  embed.setDescription(description);
+  await interaction.reply({ embeds: [embed] });
 }
 
 export async function checkQuizChannel(interaction) {
