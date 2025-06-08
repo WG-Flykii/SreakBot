@@ -6,7 +6,7 @@ import { dirname } from 'path';
 
 import { maps, mapAliases, mapImages } from '../data/game/maps_data.js';
 
-import { getCreateQuizId, getQuizId, getAdminId, quizzesByChannel, isQuizChannel, newLoc, handleGuess, showLeaderboard, showPersonalStats, sendPrivateMessageOffer } from '../utils/bot_utils.js';
+import { getCreateQuizId, getQuizId, getAdminId, quizzesByChannel, isQuizChannel, newLoc, handleGuess, sendPrivateMessageOffer, availableMapsEmbed } from '../utils/bot_utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -110,12 +110,7 @@ async function handlePlayerCommands(message) {
       break;
 
     case '!maps':
-      const mapsEmbed = new EmbedBuilder()
-        .setTitle('Available Maps')
-        .setDescription(mapNames.join('\n'))
-        .setColor('#3498db');
-
-      await message.channel.send({ embeds: [mapsEmbed] });
+      await message.channel.send({ embeds: [availableMapsEmbed()] });
       break;
 
     case '!help':

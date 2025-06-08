@@ -33,6 +33,11 @@ export const getCreateQuizId = (action) => serverConfig[action.guild.id]?.create
 export const getQuizId = (action) => serverConfig[action.guild.id]?.quizId; // Main quiz channel
 export const getAdminId = (action) => serverConfig[action.guild.id]?.adminId; // Channel to make sendPrivateMessageOffer
 
+export const availableMapsEmbed = () => new EmbedBuilder()
+  .setTitle('Available Maps')
+  .setDescription(mapNames.join('\n'))
+  .setColor('#3498db');
+
 const locRetries = 3;
 
 function getDay(date = null) {
@@ -120,7 +125,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       selectedMapName = resolveMapName(mapName);
       if (!selectedMapName) {
         // TODO: Check if map exists still, just play it w/ no leaderboard
-        await channel.send(`Map "${mapName}" not found.\nAvailable maps: ${mapNames.join(', ')}`);
+        await channel.send({ content: `Map "${mapName}" not found.`, embeds: [availableMapsEmbed()] });
         return;
       }
     } else {
@@ -641,8 +646,12 @@ export function initializeThreadCleanup() {
 
 export async function showLeaderboard(interaction, inputName, type) {
   const places = 10;
-  let mapName = mapAliases[inputName.toLowerCase()] || inputName;
-  mapName = mapNames.find(m => m.toLowerCase() === mapName.toLowerCase());
+  const mapName = resolveMapName(inputName);
+
+  if (!mapName) {
+    await interaction.reply({ content: `Map "${inputName}" not found.`, embeds: [availableMapsEmbed()] });
+    return;
+  }
 
   let mapLb;
   if (type === 'solo'){
