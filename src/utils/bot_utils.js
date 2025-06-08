@@ -644,16 +644,6 @@ export async function showLeaderboard(interaction, inputName, type) {
   let mapName = mapAliases[inputName.toLowerCase()] || inputName;
   mapName = mapNames.find(m => m.toLowerCase() === mapName.toLowerCase());
 
-  if (!mapName || !mapNames.includes(mapName)) {
-    const similarMap = mapNames.find(m => m.toLowerCase() === normalizedInput);
-    if (similarMap) {
-      mapName = similarMap;
-    } else {
-      await interaction.reply(`Map "${inputName}" not found. Available maps: ${mapNames.join(', ')}`);
-      return;
-    }
-  }
-
   let mapLb;
   if (type === 'solo'){
     mapLb = Object.values(lbStreaksSolo[mapName]).slice(0, places) || [];
