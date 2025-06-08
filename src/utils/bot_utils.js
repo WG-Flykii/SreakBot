@@ -149,7 +149,8 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       location: null,
       country: null,
       subdivision: null,
-      retries: channelData.retries || 0
+      retries: channelData.retries || 0,
+      processed: false
     };
 
     if (!quizzesByChannel[channel.id]) return;
@@ -202,6 +203,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
 
     quizzesByChannel[channel.id].country = locationInfo.country;
     quizzesByChannel[channel.id].subdivision = locationInfo.subdivision;
+    quizzesByChannel[channel.id].processed = true;
 
     const attachment = new AttachmentBuilder(screenshotBuffer, { name: 'quiz_location.jpg' });
 
@@ -242,8 +244,11 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
 // If a guess is wrong, end the game and give info
 export async function handleGuess(message, guess) {
   if (!guess) return;
+  if (!quizzesByChannel[message.channel.id]
+    || !quizzesByChannel[message.channel.id].processed) return;
 
   const channelId = message.channel.id;
+  quizzesByChannel[channelId].processed = false;
   const quiz = quizzesByChannel[channelId];
   if (!quiz) return;
 
@@ -479,9 +484,8 @@ export async function handleGuess(message, guess) {
             { name: 'Subdivision', value: `${subdivision}`, inline: true },
             { name: 'Time This Round', value: formatTime(quizTime), inline: true },
             { name: 'Average Time', value: formatTime(quiz.multi.averageTime), inline: true },
-            { name: 'Average Solo Time', value: formatTime(quiz.solo.averageTime), inline: true },
             { name: 'Total Streak', value: `${quiz.multi.currentStreak}`, inline: true },
-            { name: 'Solo Streak', value: `${quiz.solo.currentStreak}`, inline: true },
+            { name: 'Participants', value: participantsList, inline: true },
             {
               name: "Exact Location",
               value: `[Click here to view on Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}&heading=0&pitch=0)`
