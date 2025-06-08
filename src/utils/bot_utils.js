@@ -168,7 +168,8 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
 
     // Adding a bunch of checks in case !stop is used
     if (!mapLocations || mapLocations.length === 0) {
-      await loadingMessage.edit("Could not fetch locations for this map.");
+      await channel.send("Could not fetch locations for this map.");
+      await loadingMessage.delete();
       return;
     }
 
@@ -178,7 +179,8 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
 
     const embedUrl = getWorldGuessrEmbedUrl(location);
     if (!embedUrl) {
-      await loadingMessage.edit("Error generating quiz location.");
+      await channel.send("Error generating quiz location.");
+      await loadingMessage.delete();
       return;
     }
 
@@ -188,7 +190,8 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       locationInfo = await getCountryFromCoordinates(location.lat, location.lng);
 
       if (!locationInfo || !locationInfo.country) {
-        await loadingMessage.edit("Error fetching country for the location. Deleting it from the map and retrying...");
+        await channel.send("Error fetching country for the location. Deleting it from the map and retrying...");
+        await loadingMessage.delete();
         mapCache[maps[selectedMapName]].splice(locationIndex, 1);
         if (!quizzesByChannel[channel.id]) return;
         newLoc(channel, quizId, mapName, userId);
@@ -214,7 +217,8 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       .setColor('#3498db')
       .setFooter({ text: `Map: ${selectedMapName} | Current Streak: ${quizzesByChannel[channel.id].multi.currentStreak}` });
 
-    await loadingMessage.edit({ embeds: [embed], files: [attachment] });
+    await channel.send({ embeds: [embed], files: [attachment] });
+    await loadingMessage.delete();
     quizzesByChannel[channel.id].startTime = Date.now();
 
     console.log(`New quiz started in channel ${channel.id}. Map: ${selectedMapName}, Answer: ${locationInfo.country}`);
@@ -228,14 +232,11 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
     console.error(`Error starting quiz: ${error}`);
     quizzesByChannel[channel.id].retries++;
     if (quizzesByChannel[channel.id].retries > locRetries) {
-      if (loadingMessage) await loadingMessage.edit({ content: `Max retries reached. Stopping quiz.`, embeds: [] });
-      else await channel.send(`Max retries reached. Stopping quiz.`);
-      delete quizzesByChannel[channel.id];
-      return;
+      await channel.send(`Max retries reached. Stopping quiz.`);
+      if (loadingMessage) await loadingMessage.delete();
     }
-    const errorMessage = `An error occurred while creating the quiz. Using ${quizzesByChannel[channel.id].retries} out of ${locRetries} retries.`
-    if (loadingMessage) await loadingMessage.edit({ content: errorMessage, embeds: [] });
-    else await channel.send(errorMessage);
+    await channel.send(`An error occurred while creating the quiz. Using ${quizzesByChannel[channel.id].retries} out of ${locRetries} retries.`);
+    if (loadingMessage) await loadingMessage.delete();
     newLoc(channel, quizId, mapName, userId);
   }
 }
