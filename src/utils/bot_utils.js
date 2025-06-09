@@ -6,10 +6,10 @@ import { dirname } from 'path';
 import { client } from '../streakbot.js';
 
 import { COUNTRIES, COUNTRY_LOOKUP } from '../data/game/countries_data.js';
-import { mapNames, maps, mapAliases } from '../data/game/maps_data.js';
+import { mapToSlug, mapNames, mapAliases } from '../data/game/maps_data.js';
 
 import { loadJsonFile, saveJsonFile } from './json_utils.js';
-import { initializeResources, getCountryFromCoordinates, getWorldGuessrEmbedUrl, fetchMapLocations, takeScreenshot } from './web_utils.js';
+import { initializeResources, getCountryFromCoordinates, getWorldGuessrEmbedUrl, fetchMapLocations, takeScreenshot, mapCache } from './web_utils.js';
 
 export let quizzesByChannel = {};
 
@@ -32,6 +32,11 @@ export let serverConfig = loadJsonFile(SERVER_CONFIG_PATH, {});
 export const getCreateQuizId = (action) => serverConfig[action.guild.id]?.createQuizId; // Channel to send sendPrivateMessageOffer
 export const getQuizId = (action) => serverConfig[action.guild.id]?.quizId; // Main quiz channel
 export const getAdminId = (action) => serverConfig[action.guild.id]?.adminId; // Channel to make sendPrivateMessageOffer
+
+export const availableMapsEmbed = () => new EmbedBuilder()
+  .setTitle('Available Maps')
+  .setDescription(mapNames.join('\n'))
+  .setColor('#3498db');
 
 const locRetries = 3;
 
@@ -113,6 +118,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
   }
 
   let loadingMessage;
+  let saveStreaks = true;
   try {
     let selectedMapName = null;
 
@@ -120,11 +126,21 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       selectedMapName = resolveMapName(mapName);
       if (!selectedMapName) {
         // TODO: Check if map exists still, just play it w/ no leaderboard
-        await channel.send(`Map "${mapName}" not found.\nAvailable maps: ${mapNames.join(', ')}`);
-        return;
+        if (!quizzesByChannel[channel.id]) {
+          await channel.send({ content: `Map "${mapName}" not found. Playing without saving streaks...` });
+        }
+        selectedMapName = mapName;
+        saveStreaks = false;
       }
     } else {
       selectedMapName = mapNames[Math.floor(Math.random() * mapNames.length)];
+    }
+
+    let [actualMap, mapLocations] = await fetchMapLocations(selectedMapName);
+    if (quizzesByChannel[channel.id]?.mapName) actualMap = quizzesByChannel[channel.id].mapName;
+    if (!mapLocations) {
+      channel.send(`Map "${mapName}" does not exist, or error fetching locations.`);
+      return;
     }
 
     const channelData = quizzesByChannel[channel.id] || {};
@@ -138,13 +154,15 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
         currentStreak: channelData.multi?.currentStreak || 0
       },
       startTime: null,
-      mapName: selectedMapName,
+      mapName: actualMap,
       lastParticipant: channelData.lastParticipant || null,
       participants: channelData.participants || [],
       location: null,
       country: null,
       subdivision: null,
-      retries: channelData.retries || 0
+      retries: channelData.retries || 0,
+      processed: false,
+      saveStreaks: saveStreaks
     };
 
     if (!quizzesByChannel[channel.id]) return;
@@ -157,12 +175,12 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       ]
     });
 
-    if (!quizzesByChannel[channel.id]) return;
-    const mapLocations = await fetchMapLocations(selectedMapName);
-
     // Adding a bunch of checks in case !stop is used
+    if (!quizzesByChannel[channel.id]) return;
+
     if (!mapLocations || mapLocations.length === 0) {
-      await loadingMessage.edit("Could not fetch locations for this map.");
+      await channel.send("Could not fetch locations for this map.");
+      await loadingMessage.delete();
       return;
     }
 
@@ -172,7 +190,8 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
 
     const embedUrl = getWorldGuessrEmbedUrl(location);
     if (!embedUrl) {
-      await loadingMessage.edit("Error generating quiz location.");
+      await channel.send("Error generating quiz location.");
+      await loadingMessage.delete();
       return;
     }
 
@@ -182,8 +201,10 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       locationInfo = await getCountryFromCoordinates(location.lat, location.lng);
 
       if (!locationInfo || !locationInfo.country) {
-        await loadingMessage.edit("Error fetching country for the location. Deleting it from the map and retrying...");
-        mapCache[maps[selectedMapName]].splice(locationIndex, 1);
+        await channel.send("Error fetching country for the location. Deleting it from the map and retrying...");
+        await loadingMessage.delete();
+        
+        mapCache[mapToSlug(selectedMapName)].splice(locationIndex, 1);
         if (!quizzesByChannel[channel.id]) return;
         newLoc(channel, quizId, mapName, userId);
         return;
@@ -197,20 +218,23 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
 
     quizzesByChannel[channel.id].country = locationInfo.country;
     quizzesByChannel[channel.id].subdivision = locationInfo.subdivision;
+    quizzesByChannel[channel.id].processed = true;
 
+    if (!quizzesByChannel[channel.id]) return;
     const attachment = new AttachmentBuilder(screenshotBuffer, { name: 'quiz_location.jpg' });
 
     const embed = new EmbedBuilder()
-      .setTitle(`🌍 Country streak – ${selectedMapName}`)
+      .setTitle(`🌍 Country streak – ${actualMap}`)
       .setDescription('In which country is this location? Use `!g <country>` to guess!')
       .setImage('attachment://quiz_location.jpg')
       .setColor('#3498db')
-      .setFooter({ text: `Map: ${selectedMapName} | Current Streak: ${quizzesByChannel[channel.id].multi.currentStreak}` });
+      .setFooter({ text: `Map: ${actualMap} | Current Streak: ${quizzesByChannel[channel.id].multi.currentStreak}` });
 
-    await loadingMessage.edit({ embeds: [embed], files: [attachment] });
+    await channel.send({ embeds: [embed], files: [attachment] });
+    await loadingMessage.delete();
     quizzesByChannel[channel.id].startTime = Date.now();
 
-    console.log(`New quiz started in channel ${channel.id}. Map: ${selectedMapName}, Answer: ${locationInfo.country}`);
+    console.log(`New quiz started in channel ${channel.id}. Map: ${actualMap}, Answer: ${locationInfo.country}`);
     console.log(JSON.stringify(locationInfo.address, null, 2));
 
     quizzesByChannel[channel.id].retries = 0;
@@ -221,14 +245,12 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
     console.error(`Error starting quiz: ${error}`);
     quizzesByChannel[channel.id].retries++;
     if (quizzesByChannel[channel.id].retries > locRetries) {
-      if (loadingMessage) await loadingMessage.edit({ content: `Max retries reached. Stopping quiz.`, embeds: [] });
-      else await channel.send(`Max retries reached. Stopping quiz.`);
-      delete quizzesByChannel[channel.id];
+      await channel.send(`Max retries reached. Stopping quiz.`);
+      if (loadingMessage) await loadingMessage.delete();
       return;
     }
-    const errorMessage = `An error occurred while creating the quiz. Using ${quizzesByChannel[channel.id].retries} out of ${locRetries} retries.`
-    if (loadingMessage) await loadingMessage.edit({ content: errorMessage, embeds: [] });
-    else await channel.send(errorMessage);
+    await channel.send(`An error occurred while creating the quiz. Using ${quizzesByChannel[channel.id].retries} out of ${locRetries} retries.`);
+    if (loadingMessage) await loadingMessage.delete();
     newLoc(channel, quizId, mapName, userId);
   }
 }
@@ -237,8 +259,11 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
 // If a guess is wrong, end the game and give info
 export async function handleGuess(message, guess) {
   if (!guess) return;
+  if (!quizzesByChannel[message.channel.id]
+    || !quizzesByChannel[message.channel.id].processed) return;
 
   const channelId = message.channel.id;
+  quizzesByChannel[channelId].processed = false;
   const quiz = quizzesByChannel[channelId];
   if (!quiz) return;
 
@@ -289,136 +314,138 @@ export async function handleGuess(message, guess) {
       lbStreaksMulti[mapName] = {};
     }
 
-    const soloEntry = {
-      streak: quiz.solo.currentStreak,
-      averageTime: quiz.solo.averageTime,
-      participants: [userId],
-      date: now
-    };
-    const multiEntry = {
-      streak: quiz.multi.currentStreak,
-      averageTime: quiz.multi.averageTime,
-      participants: quiz.participants,
-      date: now
-    }
-
-    // Must update LBs first, as it uses old dates from old PBs as keys for LB entries
-    const lbKeySolo = pbStreaksSolo[userId][mapName]?.date || -1;
-    let lbKeysMulti = quiz.participants.map(p => pbStreaksMulti[p][mapName]?.date || -1);
-
-    const oldLbEntrySolo = lbStreaksSolo[mapName][lbKeySolo];
-    if (lbKeySolo === -1) {
-      lbStreaksSolo[mapName][now] = soloEntry;
-    } else if (
-      quiz.solo.currentStreak > oldLbEntrySolo.streak
-      || (
-        quiz.solo.currentStreak === oldLbEntrySolo.streak
-        && quiz.solo.averageTime < oldLbEntrySolo.averageTime
-      )
-    ) {
-      delete lbStreaksSolo[mapName][lbKeySolo];
-      lbStreaksSolo[mapName][now] = soloEntry;
-    }
-
-    // TODO: effficient insertion with binary search
-    lbStreaksSolo[mapName] = Object.fromEntries(
-      Object.entries(lbStreaksSolo[mapName]).sort(([,a], [,b]) => {
-        if (b.streak !== a.streak) {
-          return b.streak - a.streak;
-        }
-        return a.averageTime - b.averageTime;
-      })
-    );
-
-    // Goal: every entry must be at least one participants PB
-    // and each participant's PB must appear
-    // Algorithm: find indices where the new streak is a PB,
-    // If it is at least one person's first streak: insert immediately and return
-    // If it is somebody's PB:
-    //   check if you can delete old PBs by checking that nobody else's PB is the old PB
-    //   insert the new PB in order
-    // If it is nobody's PB:
-    //   do nothing
-
-    if (quiz.participants.length > 1) {
-      let save;
-      if (lbKeysMulti.includes(-1)) {
-        lbStreaksMulti[mapName][now] = multiEntry;
-        lbKeysMulti = lbKeysMulti.filter(k => k !== -1);
-        save = true;
-      } else save = false;
-
-      let deletions = [];
-      for (const key of lbKeysMulti) {
-        if (deletions.includes(key)) continue;
-        // Check if it's better than the current PB
-        let canDelete = true;
-        const pbEntry = lbStreaksMulti[mapName][key]; // Current place on LB
-        if (
-          quiz.multi.currentStreak > pbEntry.streak
-          || (
-            quiz.multi.currentStreak === pbEntry.streak
-            && quiz.multi.averageTime < pbEntry.averageTime
-          )
-        ) {
-          save = true;
-          // Only try to delete if it's better than old PB
-          // Check if it's somebody's PB, if so don't delete
-          for (const p of pbEntry.participants) {
-            if (quiz.participants.includes(p)) continue;
-            if (pbStreaksMulti[p][mapName].date === key) {
-              canDelete = false; break;
-            }
-          }
-          if (canDelete) deletions.push(key);
-        }
+    if (quizzesByChannel[message.channel.id].saveStreaks) {
+      const soloEntry = {
+        streak: quiz.solo.currentStreak,
+        averageTime: quiz.solo.averageTime,
+        participants: [userId],
+        date: now
+      };
+      const multiEntry = {
+        streak: quiz.multi.currentStreak,
+        averageTime: quiz.multi.averageTime,
+        participants: quiz.participants,
+        date: now
       }
 
-      if (save) {
-        for (const key of deletions) {
-          delete lbStreaksMulti[mapName][key];
-        }
-        lbStreaksMulti[mapName][now] = multiEntry;
+      // Must update LBs first, as it uses old dates from old PBs as keys for LB entries
+      const lbKeySolo = pbStreaksSolo[userId][mapName]?.date || -1;
+      let lbKeysMulti = quiz.participants.map(p => pbStreaksMulti[p][mapName]?.date || -1);
+
+      const oldLbEntrySolo = lbStreaksSolo[mapName][lbKeySolo];
+      if (lbKeySolo === -1) {
+        lbStreaksSolo[mapName][now] = soloEntry;
+      } else if (
+        quiz.solo.currentStreak > oldLbEntrySolo.streak
+        || (
+          quiz.solo.currentStreak === oldLbEntrySolo.streak
+          && quiz.solo.averageTime < oldLbEntrySolo.averageTime
+        )
+      ) {
+        delete lbStreaksSolo[mapName][lbKeySolo];
+        lbStreaksSolo[mapName][now] = soloEntry;
       }
 
-      lbStreaksMulti[mapName] = Object.fromEntries(
-        Object.entries(lbStreaksMulti[mapName]).sort(([,a], [,b]) => {
+      // TODO: effficient insertion with binary search
+      lbStreaksSolo[mapName] = Object.fromEntries(
+        Object.entries(lbStreaksSolo[mapName]).sort(([,a], [,b]) => {
           if (b.streak !== a.streak) {
             return b.streak - a.streak;
           }
           return a.averageTime - b.averageTime;
         })
       );
-      saveJsonFile(MULTI_LB_STREAK_PATH, lbStreaksMulti);
-    }
 
-    if (
-      !pbStreaksSolo[userId][mapName]
-      || quiz.solo.currentStreak > pbStreaksSolo[userId][mapName].streak
-      || (
-        quiz.solo.currentStreak === pbStreaksSolo[userId][mapName].streak
-        && quiz.solo.averageTime < pbStreaksSolo[userId][mapName].averageTime
-      )
-    ) pbStreaksSolo[userId][mapName] = soloEntry
+      // Goal: every entry must be at least one participants PB
+      // and each participant's PB must appear
+      // Algorithm: find indices where the new streak is a PB,
+      // If it is at least one person's first streak: insert immediately and return
+      // If it is somebody's PB:
+      //   check if you can delete old PBs by checking that nobody else's PB is the old PB
+      //   insert the new PB in order
+      // If it is nobody's PB:
+      //   do nothing
 
-    if (quiz.participants.length > 1) {
-      for (const p of quiz.participants) {
-        if (
-          !pbStreaksMulti[p][mapName]
-          || quiz.multi.currentStreak > pbStreaksMulti[p][mapName].streak
-          || (
-            quiz.multi.currentStreak === pbStreaksMulti[p][mapName].streak
-            && quiz.multi.averageTime < pbStreaksMulti[p][mapName].averageTime
-          )
-        ) {
-          pbStreaksMulti[p][mapName] = multiEntry;
+      if (quiz.participants.length > 1) {
+        let save;
+        if (lbKeysMulti.includes(-1)) {
+          lbStreaksMulti[mapName][now] = multiEntry;
+          lbKeysMulti = lbKeysMulti.filter(k => k !== -1);
+          save = true;
+        } else save = false;
+
+        let deletions = [];
+        for (const key of lbKeysMulti) {
+          if (deletions.includes(key)) continue;
+          // Check if it's better than the current PB
+          let canDelete = true;
+          const pbEntry = lbStreaksMulti[mapName][key]; // Current place on LB
+          if (
+            quiz.multi.currentStreak > pbEntry.streak
+            || (
+              quiz.multi.currentStreak === pbEntry.streak
+              && quiz.multi.averageTime < pbEntry.averageTime
+            )
+          ) {
+            save = true;
+            // Only try to delete if it's better than old PB
+            // Check if it's somebody's PB, if so don't delete
+            for (const p of pbEntry.participants) {
+              if (quiz.participants.includes(p)) continue;
+              if (pbStreaksMulti[p][mapName].date === key) {
+                canDelete = false; break;
+              }
+            }
+            if (canDelete) deletions.push(key);
+          }
         }
-      }
-      saveJsonFile(MULTI_PB_STREAK_PATH, pbStreaksMulti);
-    }
 
-    saveJsonFile(SOLO_PB_STREAK_PATH, pbStreaksSolo);
-    saveJsonFile(SOLO_LB_STREAK_PATH, lbStreaksSolo);
+        if (save) {
+          for (const key of deletions) {
+            delete lbStreaksMulti[mapName][key];
+          }
+          lbStreaksMulti[mapName][now] = multiEntry;
+        }
+
+        lbStreaksMulti[mapName] = Object.fromEntries(
+          Object.entries(lbStreaksMulti[mapName]).sort(([,a], [,b]) => {
+            if (b.streak !== a.streak) {
+              return b.streak - a.streak;
+            }
+            return a.averageTime - b.averageTime;
+          })
+        );
+        saveJsonFile(MULTI_LB_STREAK_PATH, lbStreaksMulti);
+      }
+
+      if (
+        !pbStreaksSolo[userId][mapName]
+        || quiz.solo.currentStreak > pbStreaksSolo[userId][mapName].streak
+        || (
+          quiz.solo.currentStreak === pbStreaksSolo[userId][mapName].streak
+          && quiz.solo.averageTime < pbStreaksSolo[userId][mapName].averageTime
+        )
+      ) pbStreaksSolo[userId][mapName] = soloEntry
+
+      if (quiz.participants.length > 1) {
+        for (const p of quiz.participants) {
+          if (
+            !pbStreaksMulti[p][mapName]
+            || quiz.multi.currentStreak > pbStreaksMulti[p][mapName].streak
+            || (
+              quiz.multi.currentStreak === pbStreaksMulti[p][mapName].streak
+              && quiz.multi.averageTime < pbStreaksMulti[p][mapName].averageTime
+            )
+          ) {
+            pbStreaksMulti[p][mapName] = multiEntry;
+          }
+        }
+        saveJsonFile(MULTI_PB_STREAK_PATH, pbStreaksMulti);
+      }
+
+      saveJsonFile(SOLO_PB_STREAK_PATH, pbStreaksSolo);
+      saveJsonFile(SOLO_LB_STREAK_PATH, lbStreaksSolo);
+    }
 
     const flag = countryInfo?.flag || '';
 
@@ -445,25 +472,10 @@ export async function handleGuess(message, guess) {
 
     // To check when stopped
     if (!quizzesByChannel[channelId]) return;
-    quizzesByChannel[channelId] = {
-      solo: quiz.solo,
-      multi: quiz.multi,
-      startTime: now,
-      mapName: quiz.mapName,
-      lastParticipant: quiz.lastParticipant,
-      participants: quiz.participants,
-      location: quiz.location,
-      country: correctCountry,
-      subdivision: quiz.subdivision
-    };
-
     await newLoc(message.channel, quizId, quiz.mapName, message.author.id);
   } else {
     const flag = countryInfo?.flag || '';
-    //const pb = pbStreaksSolo[message.author.id]?.[quiz.mapName]?.streak || 0;
-
     const participantsList = userList(quiz.participants);
-
 
     await message.reply({
       embeds: [
@@ -474,9 +486,8 @@ export async function handleGuess(message, guess) {
             { name: 'Subdivision', value: `${subdivision}`, inline: true },
             { name: 'Time This Round', value: formatTime(quizTime), inline: true },
             { name: 'Average Time', value: formatTime(quiz.multi.averageTime), inline: true },
-            { name: 'Average Solo Time', value: formatTime(quiz.solo.averageTime), inline: true },
             { name: 'Total Streak', value: `${quiz.multi.currentStreak}`, inline: true },
-            { name: 'Solo Streak', value: `${quiz.solo.currentStreak}`, inline: true },
+            { name: 'Participants', value: participantsList, inline: true },
             {
               name: "Exact Location",
               value: `[Click here to view on Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}&heading=0&pitch=0)`
@@ -485,6 +496,11 @@ export async function handleGuess(message, guess) {
           .setColor('#e74c3c')
       ]
     });
+
+    if (!quizzesByChannel[channelId].saveStreaks) {
+      delete mapCache[mapToSlug(quizzesByChannel[channelId].mapName)];
+      await message.channel.send('Streaks not saved - not an official map.');
+    }
     delete quizzesByChannel[channelId];
   }
 }
@@ -641,20 +657,21 @@ export function initializeThreadCleanup() {
 
 export async function showLeaderboard(interaction, inputName, type) {
   const places = 10;
-  const mapName = mapNames.find(m => m.toLowerCase() === inputName.toLowerCase());
+  const mapName = resolveMapName(inputName);
+
   if (!mapName) {
-    await interaction.reply(`Map "${inputName}" not found. Available maps: ${mapNames.join(', ')}`);
+    await interaction.reply({ content: `Map "${inputName}" not found.`, embeds: [availableMapsEmbed()] });
     return;
   }
 
   let mapLb;
   if (type === 'solo'){
-    mapLb = Object.values(lbStreaksSolo[mapName]).slice(0, places) || [];
+    mapLb = Object.values(lbStreaksSolo[mapName]) || [];
   } else if (type === 'multi') {
-    mapLb = Object.values(lbStreaksMulti[mapName]).slice(0, places) || [];
+    mapLb = Object.values(lbStreaksMulti[mapName]) || [];
   } else if (type === 'combined') {
-    const mapLbSolo = Object.values(lbStreaksSolo[mapName]).slice(0, places) || [];
-    const mapLbMulti = Object.values(lbStreaksMulti[mapName]).slice(0, places) || [];
+    const mapLbSolo = Object.values(lbStreaksSolo[mapName]) || [];
+    const mapLbMulti = Object.values(lbStreaksMulti[mapName]) || [];
     mapLb = mapLbSolo.concat(mapLbMulti);
   }
 
@@ -669,32 +686,84 @@ export async function showLeaderboard(interaction, inputName, type) {
         return b.streak - a.streak;
       }
       return a.averageTime - b.averageTime;
-    }).slice(0, places);
+    });
   }
 
   const embed = new EmbedBuilder()
     .setTitle(`🏆 ${mapName} - ${type[0].toUpperCase() + type.slice(1)} leaderboard`)
     .setColor('#f1c40f')
-    .setFooter({ text: `Updated: ${getDay()}` });
   
-  let description = "";
-  mapLb.forEach((entry, index) => {
-    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-    const time = formatTime(entry.averageTime);
-    const streakData = `Streak: ${entry.streak} | Average Time: ${time} | Date: ${getDay(entry.date)}`;
-    if (type === 'solo') {
-      description += `${medal} **<@${entry.participants[0]}>** - ${streakData}\n`;
-    } else {
-      description += `${medal} ${userList(entry.participants)}\n`;
-      description += streakData + '\n\n';
+  let page = 1;
+  let leaderboard;
+  const navigation = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId('lb_left')
+        .setLabel('<')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId('lb_right')
+        .setLabel('>')
+        .setStyle(ButtonStyle.Primary)
+    );
+    
+  async function updateLb() {
+    navigation.components[0].setDisabled(false);
+    navigation.components[1].setDisabled(false);
+    if (page === 1) {
+      navigation.components[0].setDisabled(true);
     }
+    if (places * page >= mapLb.length) {
+      navigation.components[1].setDisabled(true);
+    }
+
+    let description = "";
+    mapLb.slice(places * (page - 1), places * page).forEach((entry, index) => {
+      const realIndex = places * (page - 1) + index;
+      const medal = realIndex === 0 ? '🥇' : realIndex === 1 ? '🥈' : realIndex === 2 ? '🥉' : `${realIndex + 1}.`;
+      const time = formatTime(entry.averageTime);
+      const streakData = `Streak: ${entry.streak} | Average Time: ${time} | Date: ${getDay(entry.date)}`;
+      if (type === 'solo') {
+        description += `${medal} **<@${entry.participants[0]}>** - ${streakData}\n`;
+      } else {
+        description += `${medal} ${userList(entry.participants)}\n`;
+        description += streakData + '\n\n';
+      }
+    });
+    embed.setDescription(description);
+    embed.setFooter({ text: `Page ${page} of ${Math.ceil(mapLb.length / places)}` });
+
+    if (!leaderboard) {
+      leaderboard = await interaction.reply({ embeds: [embed], components: [navigation] });
+    } else {
+      await interaction.editReply({ embeds: [embed], components: [navigation] });
+    }
+  }
+
+  await updateLb();
+
+  const collector = leaderboard.createMessageComponentCollector({
+    filter: i => i.user.id === interaction.user.id,
+    time: 300000
+  });
+  
+  collector.on('collect', async (i) => {
+    if (i.customId === 'lb_left') page -= 1;
+    else page += 1;
+    await i.deferUpdate();
+    await updateLb();
   });
 
-  embed.setDescription(description);
-  await interaction.reply({ embeds: [embed] });
+  collector.on('end', async () => {
+    navigation.components[0].setDisabled(true);
+    navigation.components[1].setDisabled(true);
+    await interaction.editReply({ components: [navigation] });
+  });
 }
 
 export async function showPersonalStats(interaction, user, type) {
+  const maps = 10;
+
   let userStats, lbStreaks;
   if (type === 'solo') {
     userStats = pbStreaksSolo[user.id] || {};
@@ -739,20 +808,71 @@ export async function showPersonalStats(interaction, user, type) {
   const embed = new EmbedBuilder()
     .setTitle(`📊 ${type[0].toUpperCase() + type.slice(1)} stats for ${(await client.users.fetch(user.id)).username}`)
     .setColor('#9b59b6');
+  
+  let page = 1;
+  let stats;
+  const navigation = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId('pb_left')
+        .setLabel('<')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId('pb_right')
+        .setLabel('>')
+        .setStyle(ButtonStyle.Primary)
+    );
 
-  let description = '';
-  for (const [mapName, stats] of Object.entries(userStats)) {
-    const formattedTime = formatTime(stats.averageTime);
-    const positionString = stats.position === -1 ? 'not ranked' : `#${stats.position}`;
-    description += `**${mapName}**\n`;
-    if (type === 'multi') {
-      description += `Participants: ${userList(stats.participants)}\n`;
+  async function updatePb() {
+    navigation.components[0].setDisabled(false);
+    navigation.components[1].setDisabled(false);
+    if (page === 1) {
+      navigation.components[0].setDisabled(true);
     }
-    description += `Rank: ${positionString} | Best Streak: ${stats.streak} | Time: ${formattedTime} | Date: ${getDay(stats.date)}\n\n`;
+    if (maps * page >= Object.keys(userStats).length) {
+      navigation.components[1].setDisabled(true);
+    }
+
+    let description = "";
+    for (const [mapName, stats] of Object.entries(userStats).slice(maps * (page - 1), maps * page)) {
+      const formattedTime = formatTime(stats.averageTime);
+      const positionString = stats.position === -1 ? 'not ranked' : `#${stats.position}`;
+      description += `**${mapName}**\n`;
+      if (type === 'multi') {
+        description += `Participants: ${userList(stats.participants)}\n`;
+      }
+      description += `Rank: ${positionString} | Best Streak: ${stats.streak} | Time: ${formattedTime} | Date: ${getDay(stats.date)}\n\n`;
+    }
+
+    embed.setDescription(description);
+    embed.setFooter({ text: `Page ${page} of ${Math.ceil(Object.keys(userStats).length / maps)}` });
+
+    if (!stats) {
+      stats = await interaction.reply({ embeds: [embed], components: [navigation] });
+    } else {
+      await interaction.editReply({ embeds: [embed], components: [navigation] });
+    }
   }
 
-  embed.setDescription(description);
-  await interaction.reply({ embeds: [embed] });
+  await updatePb();
+
+  const collector = stats.createMessageComponentCollector({
+    filter: i => i.user.id === interaction.user.id,
+    time: 300000
+  });
+  
+  collector.on('collect', async (i) => {
+    if (i.customId === 'pb_left') page -= 1;
+    else page += 1;
+    await i.deferUpdate();
+    await updatePb();
+  });
+
+  collector.on('end', async () => {
+    navigation.components[0].setDisabled(true);
+    navigation.components[1].setDisabled(true);
+    await interaction.editReply({ components: [navigation] });
+  });
 }
 
 export async function checkQuizChannel(interaction) {

@@ -2,20 +2,19 @@ import axios from 'axios';
 import puppeteer from 'puppeteer';
 import sharp from 'sharp';
 
-import { mapNames, maps } from '../data/game/maps_data.js';
+import { mapToSlug, mapNames } from '../data/game/maps_data.js';
 
 let browserPool = null;
 let isInitializingBrowser = false;
 const MAX_BROWSER_AGE = 10 * 60 * 1000; // 30 mins
 let browserStartTime = null;
-let browserPage = null;
 const locationCache = {};
 export const mapCache = {};
 
 // Initializes resources
 export async function initializeResources() {
   try {
-    await getPage();
+    await getBrowser();
     console.log("Initialized browser");
 
     if (typeof preloadLocationCache === 'function') {
@@ -33,12 +32,12 @@ export async function initializeResources() {
   }
 }
 
-export async function getPage() {
+export async function getBrowser() {
   if (isInitializingBrowser) {
     while (isInitializingBrowser) {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-    return browserPage;
+    return browserPool;
   }
 
   const expired = !browserPool || (Date.now() - browserStartTime > MAX_BROWSER_AGE);
@@ -70,19 +69,15 @@ export async function getPage() {
       });
       browserStartTime = Date.now();
       console.log("Browser launched.");
-
-      browserPage = await browserPool.newPage();
-      await browserPage.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
-      await browserPage.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
     } catch (err) {
       console.error("Failed to launch browser:", err);
       browserPool = null;
     }
 
     isInitializingBrowser = false;
-  } 
+  }
 
-  return browserPage;
+  return browserPool;
 }
 
 export async function getCountryFromCoordinates(lat, lng) {
@@ -175,16 +170,14 @@ export function getWorldGuessrEmbedUrl(location) {
 }
 
 export async function fetchMapLocations(mapName) {
-  const slug = maps[mapName];
-  if (!slug) throw new Error(`Unknown map name: ${mapName}`);
-
+  const slug = mapToSlug(mapName);
   const url = `https://api.worldguessr.com/mapLocations/${slug}`;
   console.log(`Fetching map locations for ${mapName} at ${url}`);
 
-  if (mapCache[slug]) return mapCache[slug];
+  if (mapCache[slug]) return [mapName, mapCache[slug]];
 
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to fetch map: ${mapName}`);
+  if (!res.ok) return [null, null];
 
   const data = await res.json();
   if (!data.ready || !Array.isArray(data.locations)) {
@@ -192,7 +185,7 @@ export async function fetchMapLocations(mapName) {
   }
 
   mapCache[slug] = data.locations;
-  return data.locations;
+  return [data.name, data.locations];
 }
 
 export async function preloadLocationCache() {
@@ -200,7 +193,7 @@ export async function preloadLocationCache() {
 
   for (const mapName of mapNames) {
     try {
-      const locations = await fetchMapLocations(mapName);
+      const [,locations] = await fetchMapLocations(mapName);
       for (let i = locations.length-1; i >= 0; i--) {
         if (i >= locations.length) break; // To handle concurrent bad loc deletions
         const location = locations[i];
@@ -232,8 +225,18 @@ export async function takeScreenshot(url, channelId) {
   let newPageCreated = false;
 
   try {
-    const page = await getPage();
+    const browser = await getBrowser();
+
+    page = await browser.newPage();
     newPageCreated = true;
+
+    await page.setViewport({
+      width: 1280,
+      height: 720,
+      deviceScaleFactor: 1
+    });
+
+    await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
 
     await page.evaluateOnNewDocument(() => {
       window._resourcesLoaded = false;

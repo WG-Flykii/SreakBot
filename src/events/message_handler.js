@@ -4,9 +4,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
-import { maps, mapAliases, mapImages } from '../data/game/maps_data.js';
+import { mapAliases, mapImages } from '../data/game/maps_data.js';
 
-import { getCreateQuizId, getQuizId, getAdminId, quizzesByChannel, isQuizChannel, newLoc, handleGuess, showLeaderboard, showPersonalStats, sendPrivateMessageOffer } from '../utils/bot_utils.js';
+import { getCreateQuizId, getQuizId, getAdminId, quizzesByChannel, isQuizChannel, newLoc, handleGuess, sendPrivateMessageOffer, availableMapsEmbed } from '../utils/bot_utils.js';
+import { mapCache } from '../utils/web_utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -16,7 +17,6 @@ async function handlePlayerCommands(message) {
   const content = message.content.trim().toLowerCase();
   const [command, ...args] = content.split(' ');
   const quizId = getQuizId(message);
-  const mapNames = Object.keys(maps);
   let mentionedUser;
   switch (command) {
     case '!invite':
@@ -90,9 +90,12 @@ async function handlePlayerCommands(message) {
         );
       }
 
-      delete quizzesByChannel[channelId];
-
       await message.reply({ embeds: [stopEmbed] });
+      if (!quizzesByChannel[channelId].saveStreaks) {
+        delete mapCache[mapToSlug(quiz.mapName)];
+        await message.channel.send('Streaks not saved - not an official map.');
+      }
+      delete quizzesByChannel[channelId];
       break;
 
     case '!g':
@@ -110,12 +113,7 @@ async function handlePlayerCommands(message) {
       break;
 
     case '!maps':
-      const mapsEmbed = new EmbedBuilder()
-        .setTitle('Available Maps')
-        .setDescription(mapNames.join('\n'))
-        .setColor('#3498db');
-
-      await message.channel.send({ embeds: [mapsEmbed] });
+      await message.channel.send({ embeds: [availableMapsEmbed()] });
       break;
 
     case '!help':
