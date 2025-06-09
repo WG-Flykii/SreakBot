@@ -155,7 +155,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
         averageTime: channelData.multi?.averageTime || 0,
         currentStreak: channelData.multi?.currentStreak || 0
       },
-      startTime: null,
+      loadTime: null,
       mapName: selectedMapName,
       lastParticipant: channelData.lastParticipant || null,
       participants: channelData.participants || [],
@@ -221,7 +221,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
     console.log('Screenshot took', Date.now()-start);
 
     if (!quizzesByChannel[channel.id]) return;
-    if (!quizzesByChannel[channel.id].location === location) return;
+    if (quizzesByChannel[channel.id].location !== location) return;
     quizzesByChannel[channel.id].processed = true;
 
     const attachment = new AttachmentBuilder(screenshotBuffer, { name: 'quiz_location.jpg' });
@@ -235,7 +235,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
 
     await channel.send({ embeds: [embed], files: [attachment] });
     await loadingMessage.delete();
-    quizzesByChannel[channel.id].startTime = Date.now();
+    quizzesByChannel[channel.id].loadTime = Date.now();
 
     console.log(`New quiz started in channel ${channel.id}. Map: ${selectedMapName}, Answer: ${locationInfo.country}`);
     console.log(JSON.stringify(locationInfo.address, null, 2));
@@ -287,7 +287,7 @@ export async function handleGuess(message, guess) {
   const { lat, lng } = quiz.location;
 
   const now = Date.now();
-  const quizTime = now - quiz.startTime;
+  const quizTime = now - quiz.loadTime;
 
   if (isCorrect) {
     const userId = message.author.id;

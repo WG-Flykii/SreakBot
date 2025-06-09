@@ -272,7 +272,7 @@ export async function takeScreenshot(url, channelId) {
 
     /*
     let canProceed = false;
-    while (!canProceed && (Date.now() - startTime < 3000)) {
+    while (!canProceed && (Date.now() - loadTime < 3000)) {
       canProceed = await page.evaluate(() => {
         const canvas = document.querySelector('canvas');
         if (!canvas) return false;
