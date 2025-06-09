@@ -57,6 +57,7 @@ async function handlePlayerCommands(message) {
       break;
 
     case '!stop':
+      console.log('Stopping at', Date.now());
       const channelId = message.channel.id;
       const quiz = quizzesByChannel[channelId];
       console.log(quiz);
@@ -65,6 +66,12 @@ async function handlePlayerCommands(message) {
         console.log(quiz);
         return message.reply("❌ There's no ongoing game to stop in this channel.");
       }
+
+      if (quiz.saveStreaks) {
+        delete mapCache[mapToSlug(quiz.mapName)];
+        delete quizzesByChannel[channelId];
+        await message.channel.send('Streaks not saved - not an official map.');
+      } else delete quizzesByChannel[channelId];
 
       const stopEmbed = new EmbedBuilder()
         .setTitle('🛑 Game Stopped')
@@ -91,11 +98,6 @@ async function handlePlayerCommands(message) {
       }
 
       await message.reply({ embeds: [stopEmbed] });
-      if (!quizzesByChannel[channelId].saveStreaks) {
-        delete mapCache[mapToSlug(quiz.mapName)];
-        await message.channel.send('Streaks not saved - not an official map.');
-      }
-      delete quizzesByChannel[channelId];
       break;
 
     case '!g':

@@ -273,10 +273,6 @@ export async function handleGuess(message, guess) {
   const subdivision = quiz.subdivision || 'Unknown subdivision';
   const quizId = getQuizId(message);
 
-  if (!quiz.participants.some(p => p === message.author.id)) {
-    quiz.participants.push(message.author.id);
-  }
-
   const correctCountry = quiz.country;
   if (!correctCountry) return;
 
@@ -290,6 +286,10 @@ export async function handleGuess(message, guess) {
   const quizTime = now - quiz.loadTime;
 
   if (isCorrect) {
+    if (!quiz.participants.some(p => p === message.author.id)) {
+      quiz.participants.push(message.author.id);
+    }
+    
     const userId = message.author.id;
     const mapName = quiz.mapName;
 
