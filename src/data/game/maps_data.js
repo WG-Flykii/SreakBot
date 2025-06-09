@@ -7,6 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 export let mapData, mapNames, maps, mapAliases, mapImages;
+export const mapToSlug = map => map.toLowerCase().replace(/\s+/g, '-');
 
 // To reset, simply delete maps_data.json
 mapData = loadJsonFile(
@@ -17,11 +18,6 @@ mapData = loadJsonFile(
 // For a full refresh
 export function refreshMaps() {
   mapNames = Object.keys(mapData);
-
-  maps = {};
-  mapNames.forEach(name => {
-    maps[name] = name.toLowerCase().replace(/\s+/g, '-');
-  });
 
   mapAliases = {};
   mapImages = {};

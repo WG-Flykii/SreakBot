@@ -2,7 +2,7 @@ import axios from 'axios';
 import puppeteer from 'puppeteer';
 import sharp from 'sharp';
 
-import { mapNames, maps } from '../data/game/maps_data.js';
+import { mapToSlug, mapNames } from '../data/game/maps_data.js';
 
 let browserPool = null;
 let isInitializingBrowser = false;
@@ -170,16 +170,14 @@ export function getWorldGuessrEmbedUrl(location) {
 }
 
 export async function fetchMapLocations(mapName) {
-  const slug = maps[mapName];
-  if (!slug) throw new Error(`Unknown map name: ${mapName}`);
-
+  const slug = mapToSlug(mapName);
   const url = `https://api.worldguessr.com/mapLocations/${slug}`;
   console.log(`Fetching map locations for ${mapName} at ${url}`);
 
-  if (mapCache[slug]) return mapCache[slug];
+  if (mapCache[slug]) return [mapName, mapCache[slug]];
 
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to fetch map: ${mapName}`);
+  if (!res.ok) return [null, null];
 
   const data = await res.json();
   if (!data.ready || !Array.isArray(data.locations)) {
@@ -187,7 +185,7 @@ export async function fetchMapLocations(mapName) {
   }
 
   mapCache[slug] = data.locations;
-  return data.locations;
+  return [data.name, data.locations];
 }
 
 export async function preloadLocationCache() {
@@ -195,7 +193,7 @@ export async function preloadLocationCache() {
 
   for (const mapName of mapNames) {
     try {
-      const locations = await fetchMapLocations(mapName);
+      const [,locations] = await fetchMapLocations(mapName);
       for (let i = locations.length-1; i >= 0; i--) {
         if (i >= locations.length) break; // To handle concurrent bad loc deletions
         const location = locations[i];
