@@ -1,10 +1,10 @@
-import { MessageFlags, EmbedBuilder, AttachmentBuilder } from 'discord.js';
+import { EmbedBuilder, AttachmentBuilder } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
-import { mapAliases, mapImages } from '../data/game/maps_data.js';
+import { mapToSlug, mapAliases, mapImages } from '../data/game/maps_data.js';
 
 import { getCreateQuizId, getQuizId, getAdminId, quizzesByChannel, isQuizChannel, newLoc, handleGuess, sendPrivateMessageOffer, availableMapsEmbed } from '../utils/bot_utils.js';
 import { mapCache } from '../utils/web_utils.js';
