@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
-import { mapToSlug, mapAliases, mapImages, mapData } from '../data/game/maps_data.js';
+import { mapToSlug, mapAliases, mapData } from '../data/game/maps_data.js';
 
 import { getCreateQuizId, getQuizId, getAdminId, quizzesByChannel, isQuizChannel, newLoc, handleGuess, sendPrivateMessageOffer, availableMapsEmbed } from '../utils/bot_utils.js';
 import { mapCache } from '../utils/web_utils.js';
@@ -151,9 +151,8 @@ async function handlePlayerCommands(message) {
         )
         .setColor(0x2ecc71);
 
-      const imageName = mapImages[map.toLowerCase()];
+      const imageName = mapData[map].distribution;
       if (!imageName) {
-        console.log(mapImages)
         await message.reply({ embeds: [embed]});
         return;
       }
