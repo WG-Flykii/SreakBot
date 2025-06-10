@@ -8,7 +8,6 @@ import { mapToSlug, mapAliases, mapData } from '../data/game/maps_data.js';
 
 import { getCreateQuizId, getQuizId, getAdminId, getPrefix, quizzesByChannel, isQuizChannel, newLoc, handleGuess, sendPrivateMessageOffer, availableMapsEmbed } from '../utils/bot_utils.js';
 import { mapCache } from '../utils/web_utils.js';
-import { get } from 'http';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
