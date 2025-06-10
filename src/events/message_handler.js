@@ -6,8 +6,9 @@ import { dirname } from 'path';
 
 import { mapToSlug, mapAliases, mapData } from '../data/game/maps_data.js';
 
-import { getCreateQuizId, getQuizId, getAdminId, quizzesByChannel, isQuizChannel, newLoc, handleGuess, sendPrivateMessageOffer, availableMapsEmbed } from '../utils/bot_utils.js';
+import { getCreateQuizId, getQuizId, getAdminId, getPrefix, quizzesByChannel, isQuizChannel, newLoc, handleGuess, sendPrivateMessageOffer, availableMapsEmbed } from '../utils/bot_utils.js';
 import { mapCache } from '../utils/web_utils.js';
+import { get } from 'http';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -15,13 +16,16 @@ const __dirname = dirname(__filename);
 // Handles all commands of players
 async function handlePlayerCommands(message) {
   const content = message.content.trim().toLowerCase();
-  const [command, ...args] = content.split(' ');
+  let [command, ...args] = content.split(' ');
+  if (command.startsWith(getPrefix(message))) command = command.slice(1);
+  else return;
+
   const quizId = getQuizId(message);
-  let mentionedUser;
+  const mentionedUser = message.mentions.users.first();
+
   switch (command) {
-    case '!invite':
+    case 'invite':
       if (message.mentions.users.size === 0) return;
-      mentionedUser = message.mentions.users.first();
 
       if (!message.channel.isThread()) {
         await message.reply('❌ This command can only be used inside a thread.');
@@ -37,10 +41,8 @@ async function handlePlayerCommands(message) {
       }
       break;
 
-    case '!kick':
+    case 'kick':
       if (message.mentions.users.size === 0) return;
-
-      mentionedUser = message.mentions.users.first();
 
       if (!message.channel.isThread()) {
         await message.reply('❌ This command can only be used inside a thread.');
@@ -56,7 +58,7 @@ async function handlePlayerCommands(message) {
       }
       break;
 
-    case '!stop':
+    case 'stop':
       console.log('Stopping at', Date.now());
       const channelId = message.channel.id;
       const quiz = quizzesByChannel[channelId];
@@ -100,11 +102,11 @@ async function handlePlayerCommands(message) {
       await message.reply({ embeds: [stopEmbed] });
       break;
 
-    case '!g':
+    case 'g':
       await handleGuess(message, args.join(' '));
       break;
 
-    case '!play':
+    case 'play':
       if (quizzesByChannel[message.channel.id]) {
         await message.reply("There's already an active quiz. Solve it first or wait for it to complete!");
         return;
@@ -114,29 +116,30 @@ async function handlePlayerCommands(message) {
       await newLoc(message.channel, quizId, mapName, message.author.id);
       break;
 
-    case '!maps':
+    case 'maps':
       await message.reply({ embeds: [availableMapsEmbed()] });
       break;
 
-    case '!help':
+    case 'help':
+      const prefix = getPrefix(message);
       const helpEmbed = new EmbedBuilder()
         .setTitle('Bot Commands')
         .setDescription('Here are the available commands:')
         .addFields(
-          { name: '!help', value: 'Show the help message' },
-          { name: '!play', value: 'Start a new quiz with a random map' },
-          { name: '!play <map>', value: 'Start a new quiz with the specified map' },
-          { name: '!g <country>', value: 'Submit your guess for the current quiz' },
-          { name: '!maps', value: 'Show all available maps' },
-          { name: '!stats', value: 'Show your personal stats and records' },
-          { name: '!invite <@user>', value: 'Invite a user to your private thread *(only works in threads)*' },
-          { name: '!kick <@user>', value: 'Kick a user from your private thread *(only works in threads)*' }
+          { name: `${prefix}help`, value: 'Show the help message' },
+          { name: `${prefix}play`, value: 'Start a new quiz with a random map' },
+          { name: `${prefix}play <map>`, value: 'Start a new quiz with the specified map' },
+          { name: `${prefix}g <country>`, value: 'Submit your guess for the current quiz' },
+          { name: `${prefix}maps`, value: 'Show all available maps' },
+          { name: `${prefix}stats`, value: 'Show your personal stats and records' },
+          { name: `${prefix}invite <@user>`, value: 'Invite a user to your private thread *(only works in threads)*' },
+          { name: `${prefix}kick <@user>`, value: 'Kick a user from your private thread *(only works in threads)*' }
         )
         .setColor('#3498db');
       await message.reply({ embeds: [helpEmbed] });
       break;
     
-    case '!map':
+    case 'map':
       const map = mapAliases[args.join(' ').toLowerCase()];
       if (!map) {
         await message.reply({ content: `Map "${map}" not found.`, embeds: [availableMapsEmbed()] });
@@ -173,20 +176,24 @@ async function handlePlayerCommands(message) {
 async function handleAdminCommands(message) {
   const content = message.content.trim().toLowerCase();
   const [command, ...args] = content.split(' ');
+  if (command.startsWith(getPrefix(message))) command = command.slice(1);
+  else return;
+
   const createQuizId = getCreateQuizId(message);
   switch (command) {
-    case '!private_msg':
+    case 'private_msg':
       await sendPrivateMessageOffer(createQuizId);
       await message.reply('Private thread creation message sent to the quiz channel!');
       break;
 
-    case '!help':
+    case 'help':
+      const prefix = getPrefix(message);
       const helpEmbed = new EmbedBuilder()
         .setTitle("Administrator bot commands")
         .setDescription("Here are all the available admin commands")
         .addFields(
-          { name: '!help', value: 'Show the admin help message' },
-          { name: '!private_msg', value: "Create an announcement message to create private quizzes" }
+          { name: `${prefix}help`, value: 'Show the admin help message' },
+          { name: `${prefix}private_msg`, value: "Create an announcement message to create private quizzes" }
         )
         .setColor('#3498db');
       await message.reply({ embeds: [helpEmbed] });

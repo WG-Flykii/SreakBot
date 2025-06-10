@@ -31,8 +31,9 @@ export async function handleInteraction(interaction) {
       const createQuizId = interaction.options.getChannel('create-private-quiz-channel').id;
       const quizId = interaction.options.getChannel('quiz-channel').id;
       const adminId = interaction.options.getChannel('admin-channel').id;
+      const prefix = interaction.options.getString('prefix') ?? '!';
 
-      serverConfig[guild.id] = { createQuizId, quizId, adminId };
+      serverConfig[guild.id] = { createQuizId, quizId, adminId, prefix };
       saveJsonFile(SERVER_CONFIG_PATH, serverConfig);
 
       await interaction.reply({ content: `Finished setting up StreakBot!`, flags: MessageFlags.Ephemeral});

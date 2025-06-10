@@ -29,6 +29,7 @@ export let pbStreaksMulti = loadJsonFile(MULTI_PB_STREAK_PATH, {});
 export let lbStreaksMulti = loadJsonFile(MULTI_LB_STREAK_PATH, {});
 export let serverConfig = loadJsonFile(SERVER_CONFIG_PATH, {});
 
+export const getPrefix = (action) => serverConfig[action.guild.id]?.prefix;
 export const getCreateQuizId = (action) => serverConfig[action.guild.id]?.createQuizId; // Channel to send sendPrivateMessageOffer
 export const getQuizId = (action) => serverConfig[action.guild.id]?.quizId; // Main quiz channel
 export const getAdminId = (action) => serverConfig[action.guild.id]?.adminId; // Channel to make sendPrivateMessageOffer
@@ -137,7 +138,6 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       selectedMapName = mapNames[Math.floor(Math.random() * mapNames.length)];
       [,mapLocations] = await fetchMapLocations(selectedMapName);
     }
-    console.log(selectedMapName);
 
     if (quizzesByChannel[channel.id]?.mapName) selectedMapName = quizzesByChannel[channel.id].mapName;
     if (!mapLocations) {

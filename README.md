@@ -12,7 +12,7 @@ Compete solo or with friends, track your best streaks, and climb the leaderboard
 
 ---
 ## 🕹️ **Available Commands**
-Note that most commands are text-based for speed, but admin commands often use slash commands for complex interactions and to hide actions from players.
+Note that most commands are text-based for speed, but admin commands often use slash commands for complex interactions and to hide actions from players. The default prefix is `!`, but you may change this.
 
 ### **Players**
 | Command | Description |
