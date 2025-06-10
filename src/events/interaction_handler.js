@@ -64,7 +64,11 @@ export async function handleInteraction(interaction) {
       if (!(await checkAdminChannel(interaction))) return;
 
       const addName = interaction.options.getString('name');
-      const aliases = interaction.options.getString('aliases').split(',').map(item => item.trim());
+      const aliases = interaction.options.getString('aliases')
+        .toLowerCase()
+        .split(',')
+        .map(item => item.trim())
+        .push(addName.toLowerCase());
       const distribution = interaction.options.getAttachment('distribution');
 
       if (distribution) {

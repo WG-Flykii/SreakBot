@@ -203,7 +203,7 @@ export async function preloadLocationCache() {
             const locationInfo = await getCountryFromCoordinates(location.lat, location.lng);
             if (!locationInfo || !locationInfo.country) {
               console.log(`Unknown location for coordinates ${location.lat}, ${location.lng}. Deleting from map ${mapName}.`);
-              mapCache[maps[mapName]].splice(i, 1);
+              mapCache[mapToSlug(mapName)].splice(i, 1);
               continue;
             }
             locationCache[cacheKey] = locationInfo;

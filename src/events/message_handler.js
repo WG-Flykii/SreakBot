@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
-import { mapToSlug, mapAliases, mapImages } from '../data/game/maps_data.js';
+import { mapToSlug, mapAliases, mapImages, mapData } from '../data/game/maps_data.js';
 
 import { getCreateQuizId, getQuizId, getAdminId, quizzesByChannel, isQuizChannel, newLoc, handleGuess, sendPrivateMessageOffer, availableMapsEmbed } from '../utils/bot_utils.js';
 import { mapCache } from '../utils/web_utils.js';
@@ -67,7 +67,7 @@ async function handlePlayerCommands(message) {
         return message.reply("❌ There's no ongoing game to stop in this channel.");
       }
 
-      if (quiz.saveStreaks) {
+      if (!quiz.saveStreaks) {
         delete mapCache[mapToSlug(quiz.mapName)];
         delete quizzesByChannel[channelId];
         await message.channel.send('Streaks not saved - not an official map.');
@@ -115,7 +115,7 @@ async function handlePlayerCommands(message) {
       break;
 
     case '!maps':
-      await message.channel.send({ embeds: [availableMapsEmbed()] });
+      await message.reply({ embeds: [availableMapsEmbed()] });
       break;
 
     case '!help':
@@ -133,32 +133,39 @@ async function handlePlayerCommands(message) {
           { name: '!kick <@user>', value: 'Kick a user from your private thread *(only works in threads)*' }
         )
         .setColor('#3498db');
-      await message.channel.send({ embeds: [helpEmbed] });
+      await message.reply({ embeds: [helpEmbed] });
       break;
-
+    
     case '!map':
-    case '!locs':
-    case '!locations':
-    case '!distribution':
-      const mapImage = mapImages[args.join(' ')];
-
-      if (!mapImage) {
-        return message.reply("Unknown map. Try `abe`, `abaf`, or full names like `a balanced europe`.");
+      const map = mapAliases[args.join(' ').toLowerCase()];
+      if (!map) {
+        await message.reply({ content: `Map "${map}" not found.`, embeds: [availableMapsEmbed()] });
       }
 
-      const imagePath = path.join(__dirname, "../assets/images", mapImage);
-
-      if (!fs.existsSync(imagePath)) {
-        return message.reply("Image file not found.");
-      }
-
-      const file = new AttachmentBuilder(imagePath);
-      const embed = new EmbedBuilder()
-        .setTitle(`${mapAliases[args.join(' ')]} - Distribution`)
-        .setImage(`attachment://${mapImage}`)
+      const aliasesString = mapData[map].aliases.join('\n');
+      let embed = new EmbedBuilder()
+        .setTitle(`${map} - Info`)
+        .addFields(
+          { name: 'Aliases', value: aliasesString, inline: true },
+          { name: 'Type', value: mapData[map].type, inline: true }
+        )
         .setColor(0x2ecc71);
 
-      await message.channel.send({ embeds: [embed], files: [file] });
+      const imageName = mapImages[map.toLowerCase()];
+      if (!imageName) {
+        console.log(mapImages)
+        await message.reply({ embeds: [embed]});
+        return;
+      }
+      const imagePath = path.join(__dirname, "../assets/images", imageName);
+      if (fs.existsSync(imagePath)) {
+        const imageFile = new AttachmentBuilder(imagePath);
+        embed.setImage(`attachment://${imageName}`);
+        await message.reply({ embeds: [embed], files: [imageFile] });
+      } else {
+        await message.reply({ embeds: [embed]});
+      }
+
       break;
   }
 }
@@ -183,7 +190,7 @@ async function handleAdminCommands(message) {
           { name: '!private_msg', value: "Create an announcement message to create private quizzes" }
         )
         .setColor('#3498db');
-      await message.channel.send({ embeds: [helpEmbed] });
+      await message.reply({ embeds: [helpEmbed] });
       break;
   }
 }
