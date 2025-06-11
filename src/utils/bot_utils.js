@@ -11,7 +11,7 @@ import { mapToSlug, mapNames, mapAliases } from '../data/game/maps_data.js';
 import { loadJsonFile, saveJsonFile } from './json_utils.js';
 import { initializeResources, getCountryFromCoordinates, getWorldGuessrEmbedUrl, fetchMapLocations, takeScreenshot, mapCache } from './web_utils.js';
 
-export let quizzesByChannel = {};
+export let quizzes = {};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -40,6 +40,7 @@ export const availableMapsEmbed = () => new EmbedBuilder()
   .setColor('#3498db');
 
 const locRetries = 3;
+const preloadLocs = 8;
 
 function getDay(date = null) {
   const targetDate = date ? new Date(date) : new Date();
@@ -112,6 +113,32 @@ export function isQuizChannel(channel, quizId) {
   return false;
 }
 
+export async function loadLoc(map, locations, channel) {
+  const quiz = {};
+  try {
+    let locationIndex = Math.floor(Math.random() * locations.length);
+    let location = locations[locationIndex];
+    quiz.location = location;
+
+    let locationInfo;
+    locationInfo = await getCountryFromCoordinates(location.lat, location.lng);
+    quiz.country = locationInfo.country;
+    quiz.subdivision = locationInfo.subdivision;
+
+    const embedUrl = getWorldGuessrEmbedUrl(location);
+    const start = Date.now();
+    const screenshotBuffer = await takeScreenshot(embedUrl, channel.id);
+    console.log('Screenshot took', Date.now()-start);
+
+    quiz.image = new AttachmentBuilder(screenshotBuffer, { name: 'quiz_location.jpg' });
+  } catch (error) {
+    console.log(`Quiz error in channel ${channel.id}:`, error);
+  }
+  
+  if (!quizzes[channel.id]) return;
+  quizzes[channel.id].locs.push(quiz);
+}
+
 export async function newLoc(channel, quizId, mapName = null, userId = null) {
   if (!isQuizChannel(channel, quizId)) {
     await channel.send("Quizzes can only be played in the designated channel or its threads.");
@@ -120,14 +147,15 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
 
   let loadingMessage;
   let saveStreaks = true;
-  try {
+  //try {
     let selectedMapName = null;
     let mapLocations;
+    const isFirst = !quizzes[channel.id];
     if (mapName) {
       selectedMapName = resolveMapName(mapName);
       if (!selectedMapName) {
         // TODO: Check if map exists still, just play it w/ no leaderboard
-        if (!quizzesByChannel[channel.id]) {
+        if (isFirst) {
           await channel.send({ content: `Map "${mapName}" not found. Playing without saving streaks...` });
         }
         selectedMapName = mapName;
@@ -139,14 +167,14 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       [,mapLocations] = await fetchMapLocations(selectedMapName);
     }
 
-    if (quizzesByChannel[channel.id]?.mapName) selectedMapName = quizzesByChannel[channel.id].mapName;
+    if (quizzes[channel.id]?.mapName) selectedMapName = quizzes[channel.id].mapName;
     if (!mapLocations) {
       channel.send(`Map "${mapName}" does not exist, or error fetching locations.`);
       return;
     }
 
-    const channelData = quizzesByChannel[channel.id] || {};
-    quizzesByChannel[channel.id] = {
+    const channelData = quizzes[channel.id] || {};
+    quizzes[channel.id] = {
       solo: {
         averageTime: channelData.solo?.averageTime || 0,
         currentStreak: channelData.solo?.currentStreak || 0
@@ -159,15 +187,12 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       mapName: selectedMapName,
       lastParticipant: channelData.lastParticipant || null,
       participants: channelData.participants || [],
-      location: null,
-      country: null,
-      subdivision: null,
       retries: channelData.retries || 0,
       processed: false,
-      saveStreaks: saveStreaks
+      saveStreaks: saveStreaks,
+      locs: channelData.locs || []
     };
 
-    if (!quizzesByChannel[channel.id]) return;
     loadingMessage = await channel.send({
       embeds: [
         new EmbedBuilder()
@@ -177,110 +202,82 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       ]
     });
 
-    // Adding a bunch of checks in case !stop is used
-    if (!quizzesByChannel[channel.id]) return;
+    if (!quizzes[channel.id]) return;
 
-    if (!mapLocations || mapLocations.length === 0) {
-      await channel.send("Could not fetch locations for this map.");
-      await loadingMessage.delete();
-      return;
+    // To not block, use then
+    if (isFirst) {
+      Promise.all(Array.from(
+        { length: preloadLocs },
+        () => loadLoc(selectedMapName, mapLocations, channel)
+      )).then();
+    } else {
+      quizzes[channel.id].locs.shift();
+      loadLoc(selectedMapName, mapLocations, channel).then();
     }
 
-    const locationIndex = Math.floor(Math.random() * mapLocations.length);
-    const location = mapLocations[locationIndex];
-    quizzesByChannel[channel.id].location = location;
-
-    const embedUrl = getWorldGuessrEmbedUrl(location);
-    if (!embedUrl) {
-      await channel.send("Error generating quiz location.");
-      await loadingMessage.delete();
-      return;
+    while (quizzes[channel.id].locs.length === 0) {
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
+    console.log('thingy', quizzes[channel.id].locs.length);
 
-    let locationInfo;
-    while (!locationInfo || !locationInfo.country) {
-      if (!quizzesByChannel[channel.id]) return;
-      locationInfo = await getCountryFromCoordinates(location.lat, location.lng);
-
-      if (!locationInfo || !locationInfo.country) {
-        await channel.send("Error fetching country for the location. Deleting it from the map and retrying...");
-        await loadingMessage.delete();
-        
-        mapCache[mapToSlug(selectedMapName)].splice(locationIndex, 1);
-        if (!quizzesByChannel[channel.id]) return;
-        newLoc(channel, quizId, mapName, userId);
-        return;
-      }
-    }
-    quizzesByChannel[channel.id].country = locationInfo.country;
-    quizzesByChannel[channel.id].subdivision = locationInfo.subdivision;
-
-    if (!quizzesByChannel[channel.id]) return;
-    const start = Date.now();
-    const screenshotBuffer = await takeScreenshot(embedUrl, channel.id);
-    console.log('Screenshot took', Date.now()-start);
-
-    if (!quizzesByChannel[channel.id]) return;
-    if (quizzesByChannel[channel.id].location !== location) return;
-    quizzesByChannel[channel.id].processed = true;
-
-    const attachment = new AttachmentBuilder(screenshotBuffer, { name: 'quiz_location.jpg' });
+    const currentLoc = quizzes[channel.id].locs[0];
+    quizzes[channel.id].processed = true;
 
     const embed = new EmbedBuilder()
       .setTitle(`🌍 Country streak – ${selectedMapName}`)
       .setDescription('In which country is this location? Use `!g <country>` to guess!')
       .setImage('attachment://quiz_location.jpg')
       .setColor('#3498db')
-      .setFooter({ text: `Map: ${selectedMapName} | Current Streak: ${quizzesByChannel[channel.id].multi.currentStreak}` });
+      .setFooter({ text: `Map: ${selectedMapName} | Current Streak: ${quizzes[channel.id].multi.currentStreak}` });
 
-    await channel.send({ embeds: [embed], files: [attachment] });
+    await channel.send({ embeds: [embed], files: [currentLoc.image] });
     await loadingMessage.delete();
-    quizzesByChannel[channel.id].loadTime = Date.now();
+    quizzes[channel.id].loadTime = Date.now();
 
-    console.log(`New quiz started in channel ${channel.id}. Map: ${selectedMapName}, Answer: ${locationInfo.country}`);
-    console.log(JSON.stringify(locationInfo.address, null, 2));
+    console.log(`New quiz started in channel ${channel.id}. Map: ${selectedMapName}, Answer: ${currentLoc.country}`);
+    console.log(JSON.stringify(currentLoc.address, null, 2));
 
-    quizzesByChannel[channel.id].retries = 0;
-
-  } catch (error) {
-    if (!quizzesByChannel[channel.id]) return;
-    console.log(quizzesByChannel[channel.id]);
+    quizzes[channel.id].retries = 0;
+ /* } catch (error) {
+    if (!quizzes[channel.id]) return;
+    console.log(quizzes[channel.id]);
     console.error(`Error starting quiz: ${error}`);
-    quizzesByChannel[channel.id].retries++;
-    if (quizzesByChannel[channel.id].retries > locRetries) {
+    quizzes[channel.id].retries++;
+    if (quizzes[channel.id].retries > locRetries) {
       await channel.send(`Max retries reached. Stopping quiz.`);
       if (loadingMessage) await loadingMessage.delete();
       return;
     }
-    await channel.send(`An error occurred while creating the quiz. Using ${quizzesByChannel[channel.id].retries} out of ${locRetries} retries.`);
+    await channel.send(`An error occurred while creating the quiz. Using ${quizzes[channel.id].retries} out of ${locRetries} retries.`);
     if (loadingMessage) await loadingMessage.delete();
     newLoc(channel, quizId, mapName, userId);
-  }
+  }*/
 }
 
 // If a guess is right, give info and call newLoc
 // If a guess is wrong, end the game and give info
 export async function handleGuess(message, guess) {
   if (!guess) return;
-  if (!quizzesByChannel[message.channel.id]
-    || !quizzesByChannel[message.channel.id].processed) return;
+  if (!quizzes[message.channel.id]
+    || !quizzes[message.channel.id].processed) return;
 
+  const currentLoc = quizzes[message.channel.id].locs[0];
   const channelId = message.channel.id;
-  quizzesByChannel[channelId].processed = false;
-  const quiz = quizzesByChannel[channelId];
+  quizzes[channelId].processed = false;
+  const quiz = quizzes[channelId];
   if (!quiz) return;
 
-  const subdivision = quiz.subdivision || 'Unknown subdivision';
+  const subdivision = currentLoc.subdivision || 'Unknown subdivision';
   const quizId = getQuizId(message);
 
-  const correctCountry = quiz.country;
+  const correctCountry = currentLoc.country;
   if (!correctCountry) return;
 
   const countryInfo = COUNTRIES[correctCountry.toLowerCase()] ||
     COUNTRIES[normalizeCountry(correctCountry.toLowerCase())];
 
   const isCorrect = checkCountryGuess(guess, correctCountry);
-  const { lat, lng } = quiz.location;
+  const { lat, lng } = currentLoc.location;
 
   const now = Date.now();
   const quizTime = now - quiz.loadTime;
@@ -317,7 +314,7 @@ export async function handleGuess(message, guess) {
       lbStreaksMulti[mapName] = {};
     }
 
-    if (quizzesByChannel[message.channel.id].saveStreaks) {
+    if (quizzes[message.channel.id].saveStreaks) {
       const soloEntry = {
         streak: quiz.solo.currentStreak,
         averageTime: quiz.solo.averageTime,
@@ -474,7 +471,7 @@ export async function handleGuess(message, guess) {
     });
 
     // To check when stopped
-    if (!quizzesByChannel[channelId]) return;
+    if (!quizzes[channelId]) return;
     await newLoc(message.channel, quizId, quiz.mapName, message.author.id);
   } else {
     const flag = countryInfo?.flag || '';
@@ -500,11 +497,11 @@ export async function handleGuess(message, guess) {
       ]
     });
 
-    if (!quizzesByChannel[channelId].saveStreaks) {
-      delete mapCache[mapToSlug(quizzesByChannel[channelId].mapName)];
+    if (!quizzes[channelId].saveStreaks) {
+      delete mapCache[mapToSlug(quizzes[channelId].mapName)];
       await message.channel.send('Streaks not saved - not an official map.');
     }
-    delete quizzesByChannel[channelId];
+    delete quizzes[channelId];
   }
 }
 

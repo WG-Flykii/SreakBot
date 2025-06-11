@@ -6,8 +6,8 @@ import { dirname } from 'path';
 
 import { mapToSlug, mapAliases, mapData } from '../data/game/maps_data.js';
 
-import { getCreateQuizId, getQuizId, getAdminId, getPrefix, quizzesByChannel, isQuizChannel, newLoc, handleGuess, sendPrivateMessageOffer, availableMapsEmbed } from '../utils/bot_utils.js';
-import { mapCache } from '../utils/web_utils.js';
+import { getCreateQuizId, getQuizId, getAdminId, getPrefix, quizzes, isQuizChannel, newLoc, handleGuess, sendPrivateMessageOffer, availableMapsEmbed, loadLoc } from '../utils/bot_utils.js';
+import { fetchMapLocations, mapCache } from '../utils/web_utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -60,7 +60,7 @@ async function handlePlayerCommands(message) {
     case 'stop':
       console.log('Stopping at', Date.now());
       const channelId = message.channel.id;
-      const quiz = quizzesByChannel[channelId];
+      const quiz = quizzes[channelId];
       console.log(quiz);
 
       if (!quiz) {
@@ -70,9 +70,9 @@ async function handlePlayerCommands(message) {
 
       if (!quiz.saveStreaks) {
         delete mapCache[mapToSlug(quiz.mapName)];
-        delete quizzesByChannel[channelId];
+        delete quizzes[channelId];
         await message.channel.send('Streaks not saved - not an official map.');
-      } else delete quizzesByChannel[channelId];
+      } else delete quizzes[channelId];
 
       const stopEmbed = new EmbedBuilder()
         .setTitle('🛑 Game Stopped')
@@ -82,11 +82,12 @@ async function handlePlayerCommands(message) {
         )
         .setColor('#f39c12')
       
-      if (quiz.location) {
+      const currentLoc = quiz.locs[0];
+      if (currentLoc.location) {
         stopEmbed.addFields(
           {
             name: "Exact Location",
-            value: `[View on Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${quiz.location.lat},${quiz.location.lng}&heading=0&pitch=0)`
+            value: `[View on Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${currentLoc.location.lat},${currentLoc.location.lng}&heading=0&pitch=0)`
           }
         );
       } else {
@@ -102,15 +103,15 @@ async function handlePlayerCommands(message) {
       break;
 
     case 'g':
-      await handleGuess(message, args.join(' '));
+      await handleGuess(message, args.join(' ').trim());
       break;
 
     case 'play':
-      if (quizzesByChannel[message.channel.id]) {
+      if (quizzes[message.channel.id]) {
         await message.reply("There's already an active quiz. Solve it first or wait for it to complete!");
         return;
       }
-      const mapName = args.length > 0 ? args.join(' ') : null;
+      const mapName = args.length > 0 ? args.join(' ').trim() : null;
 
       await newLoc(message.channel, quizId, mapName, message.author.id);
       break;
@@ -139,7 +140,7 @@ async function handlePlayerCommands(message) {
       break;
     
     case 'map':
-      const map = mapAliases[args.join(' ').toLowerCase()];
+      const map = mapAliases[args.join(' ').trim().toLowerCase()];
       if (!map) {
         await message.reply({ content: `Map "${map}" not found.`, embeds: [availableMapsEmbed()] });
       }
@@ -167,6 +168,11 @@ async function handlePlayerCommands(message) {
         await message.reply({ embeds: [embed]});
       }
 
+      break;
+    
+    case 'test':
+      const [,locations] = await fetchMapLocations('A Balanced World');
+      await loadLoc('A Balanced World', locations, message.channel);
       break;
   }
 }

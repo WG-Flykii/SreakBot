@@ -220,7 +220,7 @@ export async function preloadLocationCache() {
   console.log(`Location cache preloaded with ${Object.keys(locationCache).length} entries`);
 }
 
-export async function takeScreenshot(url, channelId) {
+export async function takeScreenshot(url, channelId = 0) {
   let page;
   let newPageCreated = false;
 
@@ -265,38 +265,10 @@ export async function takeScreenshot(url, channelId) {
       await page.waitForFunction(() => {
         const canvas = document.querySelector('canvas');
         return canvas && canvas.offsetWidth > 0;
-      }, { timeout: 5000 });
+      }, { timeout: 7000 });
     } catch (e) {
       console.log("No canvas found, attempting to capture anyway");
     }
-
-    /*
-    let canProceed = false;
-    while (!canProceed && (Date.now() - loadTime < 3000)) {
-      canProceed = await page.evaluate(() => {
-        const canvas = document.querySelector('canvas');
-        if (!canvas) return false;
-
-        try {
-          const ctx = canvas.getContext('2d');
-          const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-
-          let nonBlackPixels = 0;
-          for (let i = 0; i < data.length; i += 30000) {
-            if (data[i] > 20 || data[i+1] > 20 || data[i+2] > 20) nonBlackPixels++;
-            if (nonBlackPixels > 3) return true;
-          }
-
-          return false;
-        } catch(e) {
-          return window._canvasReady;
-        }
-      });
-
-      if (!canProceed) {
-        await new Promise(resolve => setTimeout(resolve, 1500));
-      }
-    }*/
 
     const screenshotBuffer = await page.screenshot({
       fullPage: false,
