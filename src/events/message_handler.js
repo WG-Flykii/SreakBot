@@ -167,6 +167,10 @@ async function handlePlayerCommands(message) {
       }
 
       break;
+    
+    case 'reload':
+      await newLoc(message.channel, quizId, null, message.author.id, true);
+      break;
   }
 }
 

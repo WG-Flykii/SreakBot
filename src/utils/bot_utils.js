@@ -122,19 +122,22 @@ export function isQuizChannel(channel, quizId) {
   return false;
 }
 
-export async function loadLoc(locations, channel) {
-  const quiz = {};
+export async function loadLoc(locations, channel, reload = false) {
+  let quiz = {};
   try {
-    let locationIndex = Math.floor(Math.random() * locations.length);
-    let location = locations[locationIndex];
-    quiz.location = location;
+    if (reload) quiz = quizzes[channel.id].locs[0];
+    else {
+      let locationIndex = Math.floor(Math.random() * locations.length);
+      let location = locations[locationIndex];
+      quiz.location = location;
 
-    let locationInfo;
-    locationInfo = await getCountryFromCoordinates(location.lat, location.lng);
-    quiz.country = locationInfo.country;
-    quiz.subdivision = locationInfo.subdivision;
+      let locationInfo;
+      locationInfo = await getCountryFromCoordinates(location.lat, location.lng);
+      quiz.country = locationInfo.country;
+      quiz.subdivision = locationInfo.subdivision;
+    }
 
-    const embedUrl = getWorldGuessrEmbedUrl(location);
+    const embedUrl = getWorldGuessrEmbedUrl(quiz.location);
     const start = Date.now();
     if (!quizzes[channel.id]) return;
     const screenshotBuffer = await takeScreenshot(embedUrl, channel.id);
@@ -146,43 +149,22 @@ export async function loadLoc(locations, channel) {
   }
   
   if (!quizzes[channel.id]) return;
-  quizzes[channel.id].locs.push(quiz);
+  if (reload) quizzes[channel.id].locs[0] = quiz;
+  else quizzes[channel.id].locs.push(quiz);
 }
 
-export async function newLoc(channel, quizId, mapName = null, userId = null) {
+export async function newLoc(channel, quizId, mapName = null, userId = null, reload = false) {
   if (!isQuizChannel(channel, quizId)) {
     await channel.send("Quizzes can only be played in the designated channel or its threads.");
     return;
   }
 
+  if (reload && !(quizzes[channel.id] && quizzes[channel.id].locs)) return;
+
   let loadingMessage;
   let saveStreaks = true;
-  try {
-    let selectedMapName = null;
-    let mapLocations;
+  //try {
     const isFirst = !quizzes[channel.id];
-    if (mapName) {
-      selectedMapName = resolveMapName(mapName);
-      if (!selectedMapName) {
-        // TODO: Check if map exists still, just play it w/ no leaderboard
-        if (isFirst) {
-          await channel.send({ content: `Map "${mapName}" not found. Playing without saving streaks...` });
-        }
-        selectedMapName = mapName;
-        saveStreaks = false;
-        [selectedMapName, mapLocations] = await fetchMapLocations(selectedMapName);
-      } else [,mapLocations] = await fetchMapLocations(selectedMapName);
-    } else {
-      selectedMapName = mapNames[Math.floor(Math.random() * mapNames.length)];
-      [,mapLocations] = await fetchMapLocations(selectedMapName);
-    }
-
-    if (quizzes[channel.id]?.mapName) selectedMapName = quizzes[channel.id].mapName;
-    if (!mapLocations) {
-      channel.send(`Map "${mapName}" does not exist, or error fetching locations.`);
-      return;
-    }
-
     const channelData = quizzes[channel.id] || {};
     quizzes[channel.id] = {
       solo: {
@@ -194,14 +176,40 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
         streak: channelData.multi?.streak || 0
       },
       loadTime: null,
-      mapName: selectedMapName,
       lastParticipant: channelData.lastParticipant || null,
       participants: channelData.participants || [],
       retries: channelData.retries || 0,
       processed: false,
-      saveStreaks: saveStreaks,
-      locs: channelData.locs || []
+      locs: channelData.locs || [],
+      mapName: channelData.mapName,
+      mapLocations: channelData.mapLocations,
+      saveStreaks: channelData.saveStreaks,
     };
+
+    let selectedMapName = null;
+    let mapLocations;
+    if (isFirst) {
+      if (mapName) {
+        selectedMapName = resolveMapName(mapName);
+        if (!selectedMapName) {
+          await channel.send({ content: `Map "${mapName}" not found. Playing without saving streaks...` });
+          selectedMapName = mapName;
+          saveStreaks = false;
+          [selectedMapName, mapLocations] = await fetchMapLocations(selectedMapName, false);
+        } else [,mapLocations] = await fetchMapLocations(selectedMapName);
+      } else {
+        selectedMapName = mapNames[Math.floor(Math.random() * mapNames.length)];
+        [,mapLocations] = await fetchMapLocations(selectedMapName);
+      }
+      quizzes[channel.id].mapName = selectedMapName;
+      quizzes[channel.id].mapLocations = mapLocations;
+      quizzes[channel.id].saveStreaks = saveStreaks;
+
+      if (!mapLocations) {
+        channel.send(`Map "${mapName}" does not exist, or error fetching locations.`);
+        return;
+      }
+    }
 
     if (!quizzes[channel.id]) return;
     loadingMessage = await channel.send({
@@ -215,46 +223,48 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
 
     if (!quizzes[channel.id]) return;
 
-    // To not block, use then
-    if (isFirst) {
-      loadLoc(mapLocations, channel).then();
-      Promise.all(Array.from(
-        { length: preloadLocs - 1 },
-        () => loadLoc(mapLocations, channel)
-      )).then();
+    if (reload) {
+      // This needs to be blocking
+      await loadLoc(quizzes[channel.id].mapLocations, channel, true).then();
     } else {
-      quizzes[channel.id].locs.shift();
-      loadLoc(mapLocations, channel).then();
-    }
+      if (isFirst) {
+        // To not block, use then
+        Promise.all(Array.from(
+          { length: preloadLocs },
+          () => loadLoc(quizzes[channel.id].mapLocations, channel)
+        )).then();
+      } else {
+        quizzes[channel.id].locs.shift();
+        loadLoc(quizzes[channel.id].mapLocations, channel).then();
+      }
 
-    if (!quizzes[channel.id]) return;
-    while (quizzes[channel.id].locs.length === 0) {
-      if (!quizzes[channel.id]) return;
-      await new Promise(resolve => setTimeout(resolve, 100));
+      while (quizzes[channel.id].locs.length === 0) {
+        if (!quizzes[channel.id]) return;
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
 
     const currentLoc = quizzes[channel.id].locs[0];
     quizzes[channel.id].processed = true;
 
     const embed = new EmbedBuilder()
-      .setTitle(`🌍 Country streak – ${selectedMapName}`)
+      .setTitle(`🌍 Country streak – ${quizzes[channel.id].mapName}`)
       .setDescription('In which country is this location? Use `!g <country>` to guess!')
       .setImage('attachment://quiz_location.jpg')
       .setColor('#3498db')
-      .setFooter({ text: `Map: ${selectedMapName} | Current Streak: ${quizzes[channel.id].multi.streak}` });
+      .setFooter({ text: `Map: ${quizzes[channel.id].mapName} | Current Streak: ${quizzes[channel.id].multi.streak}` });
 
     if (!quizzes[channel.id]) return;
     await channel.send({ embeds: [embed], files: [currentLoc.image] });
     await loadingMessage.delete();
     quizzes[channel.id].loadTime = Date.now();
 
-    console.log(`New quiz started in channel ${channel.id}. Map: ${selectedMapName}, Answer: ${currentLoc.country}`);
+    console.log(`New quiz started in channel ${channel.id}. Map: ${quizzes[channel.id].mapName}, Answer: ${currentLoc.country}`);
     console.log(JSON.stringify(currentLoc.address, null, 2));
 
     quizzes[channel.id].retries = 0;
-  } catch (error) {
+  /*} catch (error) {
     if (!quizzes[channel.id]) return;
-    console.log(quizzes[channel.id]);
     console.error(`Error starting quiz: ${error}`);
     quizzes[channel.id].retries++;
     if (quizzes[channel.id].retries > locRetries) {
@@ -265,7 +275,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
     await channel.send(`An error occurred while creating the quiz. Using ${quizzes[channel.id].retries} out of ${locRetries} retries.`);
     if (loadingMessage) await loadingMessage.delete();
     newLoc(channel, quizId, mapName, userId);
-  }
+  }*/
 }
 
 function compareStreaks(a, b) {
@@ -968,7 +978,7 @@ export async function showUserLb(interaction, type, sort) {
     let description = "";
     userLb.slice(places * (page - 1), places * page).forEach((entry, index) => {
       const realIndex = places * (page - 1) + index;
-      const medal = realIndex === 0 ? '🥇' : realIndex === 1 ? '🥈' : realIndex === 2 ? '🥉' : `${realIndex + 1}.`;
+      const medal = realIndex === 1 ? '🥇' : realIndex === 2 ? '🥈' : realIndex === 3 ? '🥉' : `${realIndex}.`;
       let streakData;
       if (sort === 'rank') {
         streakData = `Total Rank: ${entry[1].totalRank} | Total Streak: ${entry[1].totalStreak}`;
@@ -1014,6 +1024,7 @@ async function saveOverallStats(userId) {
     const pbStreaks = type === 'solo' ? pbStreaksSolo : pbStreaksMulti;
     const lbStreaks = type === 'solo' ? lbStreaksSolo : lbStreaksMulti;
     const streaks = pbStreaks[userId];
+    if (!streaks) return;
     let totalRank = 0, totalStreak = 0;
     for (const [mapName, stats] of Object.entries(streaks)) {
       totalRank += 1 + findObjectIndex(
@@ -1034,7 +1045,7 @@ async function saveOverallStats(userId) {
 }
 
 export async function refreshUserLb() {
-  for (const userId of Object.keys(pbStreaks)) {
+  for (const userId of Object.keys(pbStreaksSolo)) {
     await saveOverallStats(userId);
   }
   saveJsonFile(SOLO_USERLB_PATH, userLbSolo);

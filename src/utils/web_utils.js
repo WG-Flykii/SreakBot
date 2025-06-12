@@ -169,7 +169,7 @@ export function getWorldGuessrEmbedUrl(location) {
   return `${baseUrl}?${params.toString()}`;
 }
 
-export async function fetchMapLocations(mapName) {
+export async function fetchMapLocations(mapName, saveStreaks = true) {
   const slug = mapToSlug(mapName);
   const url = `https://api.worldguessr.com/mapLocations/${slug}`;
   console.log(`Fetching map locations for ${mapName} at ${url}`);
@@ -184,7 +184,7 @@ export async function fetchMapLocations(mapName) {
     throw new Error(`Map "${mapName}" is not ready or contains no locations.`);
   }
 
-  mapCache[slug] = data.locations;
+  if (saveStreaks) mapCache[slug] = data.locations;
   return [data.name, data.locations];
 }
 
