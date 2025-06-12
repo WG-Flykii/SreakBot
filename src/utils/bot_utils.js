@@ -504,6 +504,9 @@ export async function handleGuess(message, guess) {
     const participantsList = userList(quiz.participants);
 
     if (quizzes[channelId].saveStreaks) {
+      if (!pbStreaksSolo[userId][mapName]) {
+        pbStreaksSolo[userId][mapName] = {};
+      }
       if (!pbStreaksSolo[userId][mapName].locsPlayed) {
         pbStreaksSolo[userId][mapName].locsPlayed = 0;
         pbStreaksSolo[userId][mapName].totalTime = 0;
@@ -627,7 +630,6 @@ export function scheduleThreadInactivityCheck(threadId) {
           await thread.delete(`Thread inactive for over 24h`);
           console.log(`Deleted inactive thread: ${thread.name}`);
         } else {
-          const remainingTimeMs = (24 - hoursInactive) * 60 * 60 * 1000;
           scheduleThreadInactivityCheck(threadId);
         }
       }
@@ -1056,16 +1058,21 @@ async function saveOverallStats(userId) {
       totalCorrect += stats.totalCorrect || 0;
     }
     if (totalStreak === 0) return;
-    const entry = {
+    let entry = {
       totalRank,
       totalStreak,
-      mapsPlayed: Object.keys(streaks).length,
-      locsPlayed,
-      totalTime,
-      totalCorrect
+      mapsPlayed: Object.keys(streaks).length
     };
-    if (type === 'solo') userLbSolo[userId] = entry;
-    else userLbMulti[userId] = entry;
+    if (type === 'solo') {
+      if (!userLbSolo[userId]) userLbSolo[userId] = {};
+      userLbSolo[userId].locsPlayed = locsPlayed;
+      userLbSolo[userId].totalTime = totalTime;
+      userLbSolo[userId].totalCorrect = totalCorrect;
+      userLbSolo[userId] = entry;
+    } else {
+      if (!userLbMulti[userId]) userLbMulti[userId] = {};
+      userLbMulti[userId] = entry;
+    }
   }
 }
 
