@@ -52,7 +52,7 @@ export function setClient(client) {
 }
 
 function userList(users) {
-  if (!users) return 'none';
+  if (users.length === 0) return 'none';
   return users.map(user => `<@${user}>`).join(', ');
 }
 
