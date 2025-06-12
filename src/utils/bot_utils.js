@@ -40,7 +40,7 @@ export const availableMapsEmbed = () => new EmbedBuilder()
   .setColor('#3498db');
 
 const locRetries = 3;
-const preloadLocs = 8;
+const preloadLocs = 4;
 
 function getDay(date = null) {
   const targetDate = date ? new Date(date) : new Date();
@@ -113,7 +113,7 @@ export function isQuizChannel(channel, quizId) {
   return false;
 }
 
-export async function loadLoc(map, locations, channel) {
+export async function loadLoc(locations, channel) {
   const quiz = {};
   try {
     let locationIndex = Math.floor(Math.random() * locations.length);
@@ -127,6 +127,7 @@ export async function loadLoc(map, locations, channel) {
 
     const embedUrl = getWorldGuessrEmbedUrl(location);
     const start = Date.now();
+    if (!quizzes[channel.id]) return;
     const screenshotBuffer = await takeScreenshot(embedUrl, channel.id);
     console.log('Screenshot took', Date.now()-start);
 
@@ -147,7 +148,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
 
   let loadingMessage;
   let saveStreaks = true;
-  //try {
+  try {
     let selectedMapName = null;
     let mapLocations;
     const isFirst = !quizzes[channel.id];
@@ -193,6 +194,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       locs: channelData.locs || []
     };
 
+    if (!quizzes[channel.id]) return;
     loadingMessage = await channel.send({
       embeds: [
         new EmbedBuilder()
@@ -206,19 +208,21 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
 
     // To not block, use then
     if (isFirst) {
+      loadLoc(mapLocations, channel).then();
       Promise.all(Array.from(
-        { length: preloadLocs },
-        () => loadLoc(selectedMapName, mapLocations, channel)
+        { length: preloadLocs - 1 },
+        () => loadLoc(mapLocations, channel)
       )).then();
     } else {
       quizzes[channel.id].locs.shift();
-      loadLoc(selectedMapName, mapLocations, channel).then();
+      loadLoc(mapLocations, channel).then();
     }
 
+    if (!quizzes[channel.id]) return;
     while (quizzes[channel.id].locs.length === 0) {
+      if (!quizzes[channel.id]) return;
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-    console.log('thingy', quizzes[channel.id].locs.length);
 
     const currentLoc = quizzes[channel.id].locs[0];
     quizzes[channel.id].processed = true;
@@ -230,6 +234,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
       .setColor('#3498db')
       .setFooter({ text: `Map: ${selectedMapName} | Current Streak: ${quizzes[channel.id].multi.currentStreak}` });
 
+    if (!quizzes[channel.id]) return;
     await channel.send({ embeds: [embed], files: [currentLoc.image] });
     await loadingMessage.delete();
     quizzes[channel.id].loadTime = Date.now();
@@ -238,7 +243,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
     console.log(JSON.stringify(currentLoc.address, null, 2));
 
     quizzes[channel.id].retries = 0;
- /* } catch (error) {
+  } catch (error) {
     if (!quizzes[channel.id]) return;
     console.log(quizzes[channel.id]);
     console.error(`Error starting quiz: ${error}`);
@@ -251,7 +256,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null) {
     await channel.send(`An error occurred while creating the quiz. Using ${quizzes[channel.id].retries} out of ${locRetries} retries.`);
     if (loadingMessage) await loadingMessage.delete();
     newLoc(channel, quizId, mapName, userId);
-  }*/
+  }
 }
 
 // If a guess is right, give info and call newLoc

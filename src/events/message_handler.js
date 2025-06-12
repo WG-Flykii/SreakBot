@@ -169,11 +169,6 @@ async function handlePlayerCommands(message) {
       }
 
       break;
-    
-    case 'test':
-      const [,locations] = await fetchMapLocations('A Balanced World');
-      await loadLoc('A Balanced World', locations, message.channel);
-      break;
   }
 }
 
