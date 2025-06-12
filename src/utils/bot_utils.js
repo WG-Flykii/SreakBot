@@ -859,7 +859,7 @@ export async function showPersonalStats(interaction, user, type) {
     const userLbStats = userLbSolo[user.id]
     const accuracy = (userLbStats.locsPlayed === 0) ? 0 : (userLbStats.totalCorrect / userLbStats.locsPlayed * 100).toFixed(2);
     overall += `Locations Played: ${userLbStats.locsPlayed} | Accuracy: ${accuracy}% | Average Time: ${formatTime(userLbStats.totalTime / userLbStats.locsPlayed)}\n`;
-    overall += `Total Rank: ${userLbStats.totalRank} | Total Streak: ${userLbStats.totalStreak} | Maps Played: ${userLbStats.mapsPlayed}\n\n`;
+    overall += `Rank Sum: ${userLbStats.totalRank} | Streak Sum: ${userLbStats.totalStreak} | Maps Played: ${userLbStats.mapsPlayed}\n\n`;
     embed.setDescription(overall);
     embeds.push(embed);
     embed = new EmbedBuilder().setColor('#9b59b6');
@@ -978,11 +978,9 @@ export async function showUserLb(interaction, type, sort) {
 
   if (userLb.length === 0) {
     if (sort === 'rank') {
-      await interaction.reply(`No one has played all ${mapNames.length} maps yet, ${type}. Be the first!`);
-    } else {
-      await interaction.reply(`No one has played the bot yet, ${type}. Be the first!`);
+      return interaction.reply(`No one has played all ${mapNames.length} maps yet in ${type} mode. Be the first!`);
     }
-    return;
+    return interaction.reply(`No one has played in ${type} mode yet. Be the first!`);
   }
 
   async function updateLb() {
@@ -995,7 +993,7 @@ export async function showUserLb(interaction, type, sort) {
       navigation.components[1].setDisabled(true);
     }
 
-    let description = "";
+    let description = sort === 'rank' ? `You must play all maps in ${type} mode to be on this leaderboard.\n\n` : '';
     userLb.slice(places * (page - 1), places * page).forEach((entry, index) => {
       const realIndex = places * (page - 1) + index;
       const medal = realIndex === 0 ? '🥇' : realIndex === 1 ? '🥈' : realIndex === 2 ? '🥉' : `${realIndex + 1}.`;
