@@ -1,0 +1,39 @@
+{
+	"name": "userlb",
+	"type": 1,
+	"description": "Overall rankings (rank sums).",
+    "options": [
+		{
+			"name": "type",
+			"description": "Solo or multi ranks",
+			"type": 3,
+			"required": true,
+			"choices": [
+				{
+					"name": "solo",
+					"value": "solo"
+				},
+				{
+					"name": "multi",
+					"value": "multi"
+				}
+			]
+		},
+        {
+			"name": "sort",
+			"description": "Sort by rank or streak",
+			"type": 3,
+			"required": true,
+			"choices": [
+				{
+					"name": "rank",
+					"value": "rank"
+				},
+				{
+					"name": "streak",
+					"value": "streak"
+				}
+			]
+		}
+    ]
+}

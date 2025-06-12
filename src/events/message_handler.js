@@ -6,8 +6,8 @@ import { dirname } from 'path';
 
 import { mapToSlug, mapAliases, mapData } from '../data/game/maps_data.js';
 
-import { getCreateQuizId, getQuizId, getAdminId, getPrefix, quizzes, isQuizChannel, newLoc, handleGuess, sendPrivateMessageOffer, availableMapsEmbed, loadLoc } from '../utils/bot_utils.js';
-import { fetchMapLocations, mapCache } from '../utils/web_utils.js';
+import { getCreateQuizId, getQuizId, getAdminId, getPrefix, quizzes, isQuizChannel, newLoc, handleGuess, sendPrivateMessageOffer, availableMapsEmbed, refreshUserLb } from '../utils/bot_utils.js';
+import { mapCache } from '../utils/web_utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -61,10 +61,8 @@ async function handlePlayerCommands(message) {
       console.log('Stopping at', Date.now());
       const channelId = message.channel.id;
       const quiz = quizzes[channelId];
-      console.log(quiz);
 
       if (!quiz) {
-        console.log(quiz);
         return message.reply("❌ There's no ongoing game to stop in this channel.");
       }
 
@@ -78,7 +76,7 @@ async function handlePlayerCommands(message) {
         .setTitle('🛑 Game Stopped')
         .setDescription(`The current game has been stopped manually.`)
         .addFields(
-          { name: 'Final Streak', value: `${quiz.multi.currentStreak}`, inline: true },
+          { name: 'Final Streak', value: `${quiz.multi.streak}`, inline: true },
         )
         .setColor('#f39c12')
       
@@ -175,7 +173,7 @@ async function handlePlayerCommands(message) {
 // Handles all comands of admins
 async function handleAdminCommands(message) {
   const content = message.content.trim().toLowerCase();
-  const [command, ...args] = content.split(' ');
+  let [command, ...args] = content.split(' ');
   if (command.startsWith(getPrefix(message))) command = command.slice(1);
   else return;
 
@@ -197,6 +195,10 @@ async function handleAdminCommands(message) {
         )
         .setColor('#3498db');
       await message.reply({ embeds: [helpEmbed] });
+      break;
+    
+    case 'refresh_userlb':
+      refreshUserLb();
       break;
   }
 }

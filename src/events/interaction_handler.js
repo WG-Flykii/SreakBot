@@ -7,7 +7,7 @@ import { dirname } from 'path';
 import { mapData, mapAliases, refreshMaps } from '../data/game/maps_data.js';
 
 import { saveJsonFile } from '../utils/json_utils.js';
-import { serverConfig, checkQuizChannel, checkAdminChannel, createPrivateThread, showLeaderboard, showPersonalStats } from '../utils/bot_utils.js';
+import { serverConfig, checkQuizChannel, checkAdminChannel, createPrivateThread, showLeaderboard, showPersonalStats, showUserLb } from '../utils/bot_utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -23,7 +23,7 @@ export async function handleInteraction(interaction) {
   }
 
   const guild = interaction.guild;
-  let type, map, user;
+  let type, map, user, sort;
 
   switch (interaction.commandName) {
     // #region -- Config --
@@ -131,8 +131,18 @@ export async function handleInteraction(interaction) {
 
       type = interaction.options.getString('type');
       user = interaction.options.getUser('user');
+      if (!user) user = interaction.user;
 
       await showPersonalStats(interaction, user, type)
+      break;
+    
+    case 'userlb':
+      if (!(await checkQuizChannel(interaction))) return;
+
+      type = interaction.options.getString('type');
+      sort = interaction.options.getString('sort');
+
+      await showUserLb(interaction, type, sort);
       break;
     // #endregion
   }
