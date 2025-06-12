@@ -249,7 +249,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null, rel
 
     const embed = new EmbedBuilder()
       .setTitle(`🌍 Country streak – ${quizzes[channel.id].mapName}`)
-      .setDescription('In which country is this location? Use `!g <country>` to guess!')
+      .setDescription('In which country is this location? Use `!g <country>` to guess!\n*Use `!reload` in case the location doesn\'t load fully.*')
       .setImage('attachment://quiz_location.jpg')
       .setColor('#3498db')
       .setFooter({ text: `Map: ${quizzes[channel.id].mapName} | Current Streak: ${quizzes[channel.id].multi.streak}` });
@@ -456,10 +456,17 @@ export async function handleGuess(message, guess) {
         pbStreaksSolo[userId][mapName].locsPlayed = 0;
         pbStreaksSolo[userId][mapName].totalTime = 0;
         pbStreaksSolo[userId][mapName].totalCorrect = 0;
+        userLbSolo[userId].locsPlayed = 0;
+        userLbSolo[userId].totalTime = 0;
+        userLbSolo[userId].totalCorrect = 0;
       }
       pbStreaksSolo[userId][mapName].locsPlayed++;
       pbStreaksSolo[userId][mapName].totalTime += quizTime;
       pbStreaksSolo[userId][mapName].totalCorrect++;
+      userLbSolo[userId].locsPlayed++;
+      userLbSolo[userId].totalTime += quizTime;
+      userLbSolo[userId].totalCorrect++;
+      userLbSolo[userId].mapsPlayed = Object.keys(pbStreaksSolo[userId]).length;
 
       saveOverallStats(userId)
 
@@ -501,9 +508,15 @@ export async function handleGuess(message, guess) {
         pbStreaksSolo[userId][mapName].locsPlayed = 0;
         pbStreaksSolo[userId][mapName].totalTime = 0;
         pbStreaksSolo[userId][mapName].totalCorrect = 0;
+        userLbSolo[userId].locsPlayed = 0;
+        userLbSolo[userId].totalTime = 0;
+        userLbSolo[userId].totalCorrect = 0;
       }
       pbStreaksSolo[userId][mapName].locsPlayed++;
       pbStreaksSolo[userId][mapName].totalTime += quizTime;
+      userLbSolo[userId].locsPlayed++;
+      userLbSolo[userId].totalTime += quizTime;
+      userLbSolo[userId].mapsPlayed = Object.keys(pbStreaksSolo[userId]).length;
     }
     saveJsonFile(SOLO_PB_STREAK_PATH, pbStreaksSolo);
 
@@ -686,6 +699,7 @@ export function initializeThreadCleanup() {
 }
 
 export async function showLeaderboard(interaction, inputName, type) {
+  // TODO: Greatly shorten code by having a navigationi template
   const places = 10;
   const mapName = resolveMapName(inputName);
 
@@ -790,47 +804,66 @@ export async function showPersonalStats(interaction, user, type) {
   const maps = 10;
 
   let userStats, lbStreaks;
-  if (type === 'solo') {
-    userStats = pbStreaksSolo[user.id] || {};
-    lbStreaks = lbStreaksSolo || {};
-  } else {
+  if (type === 'multi') {
     userStats = pbStreaksMulti[user.id] || {};
     lbStreaks = lbStreaksMulti || {};
+  } else {
+    userStats = pbStreaksSolo[user.id] || {};
+    lbStreaks = lbStreaksSolo || {};
   }
 
-  if (Object.keys(userStats).length === 0) {
+  if (type === 'overall') {
+    userStats = Object.entries(userStats).filter(stats => stats[1].locsPlayed !== undefined);
+  } else {
+    for (const [mapName, stats] of Object.entries(userStats)) {
+      let position = -1;
+      if (lbStreaks[mapName]) {
+        const userPos = findObjectIndex(
+          lbStreaks[mapName],
+          String(stats.date)
+        );
+        if (userPos >= 0) {
+          position = userPos + 1;
+        }
+      }
+      userStats[mapName]['position'] = position;
+    }
+
+    userStats = Object.entries(userStats).sort(([,a], [,b]) => {
+      if (a.position === -1 && b.position === -1) {
+        return a.averageTime - b.averageTime;
+      }
+      if (a.position === -1) return 1;
+      if (b.position === -1) return -1;
+      if (a.position !== b.position) {
+        return a.position - b.position;
+      }
+      return a.averageTime - b.averageTime;
+    });
+  }
+
+  if (userStats.length === 0) {
+    if (type === 'overall') {
+      return interaction.reply(`${user.username} doesn't have any recorded guesses yet.`);
+    }
     return interaction.reply(`${user.username} doesn't have a ${type} streak yet.`);
   }
 
-  for (const [mapName, stats] of Object.entries(userStats)) {
-    let position = -1;
-    if (lbStreaks[mapName]) {
-      const userPos = findObjectIndex(
-        lbStreaks[mapName],
-        String(stats.date)
-      );
-      if (userPos >= 0) {
-        position = userPos + 1;
-      }
-    }
-    userStats[mapName]['position'] = position;
-  }
-
-  userStats = Object.entries(userStats).sort(([,a], [,b]) => {
-    if (a.position === -1 && b.position === -1) {
-      return a.averageTime - b.averageTime;
-    }
-    if (a.position === -1) return 1;
-    if (b.position === -1) return -1;
-    if (a.position !== b.position) {
-      return a.position - b.position;
-    }
-    return a.averageTime - b.averageTime;
-  })
-
-  const embed = new EmbedBuilder()
+  let embeds = [];
+  let embed = new EmbedBuilder()
     .setTitle(`📊 ${capFirst(type)} stats for ${(await client.users.fetch(user.id)).username}`)
     .setColor('#9b59b6');
+  
+  if (type === 'overall') {
+    let overall = "**Overall Stats**\n";
+    const userLbStats = userLbSolo[user.id]
+    const accuracy = (userLbStats.locsPlayed === 0) ? 0 : (userLbStats.totalCorrect / userLbStats.locsPlayed * 100).toFixed(2);
+    overall += `Locations Played: ${userLbStats.locsPlayed} | Accuracy: ${accuracy}% | Average Time: ${formatTime(userLbStats.totalTime / userLbStats.locsPlayed)}\n`;
+    overall += `Total Rank: ${userLbStats.totalRank} | Total Streak: ${userLbStats.totalStreak} | Maps Played: ${userLbStats.mapsPlayed}\n\n`;
+    embed.setDescription(overall);
+    embeds.push(embed);
+    embed = new EmbedBuilder().setColor('#9b59b6');
+  }
   
   let page = 1;
   let stats;
@@ -857,44 +890,31 @@ export async function showPersonalStats(interaction, user, type) {
     }
 
     let description = "";
-    let locsPlayed = 0, totalCorrect = 0, totalTime = 0;
     for (const [mapName, stats] of userStats.slice(maps * (page - 1), maps * page)) {
       const formattedTime = formatTime(stats.averageTime);
       const positionString = stats.position === -1 ? 'not ranked' : `#${stats.position}`;
       description += `**${mapName}**\n`;
       if (type === 'multi') {
         description += `Participants: ${userList(stats.participants)}\n`;
-      } else {
-        if (stats.locsPlayed) {
-          const accuracy = (stats.totalCorrect / stats.locsPlayed * 100).toFixed(2);
-          description += `Locations Played: ${stats.locsPlayed} | Accuracy: ${accuracy}% | Average Time: ${formatTime(stats.totalTime / stats.locsPlayed)}\n`;
-          locsPlayed += stats.locsPlayed;
-          totalCorrect += stats.totalCorrect;
-          totalTime += stats.totalTime * stats.locsPlayed;
-        } else {
-          description += `Locations Played: 0 | Accuracy: 0.00% | Average Time: 00:00.00\n`;
-        }
       }
-      description += `Rank: ${positionString} | Best Streak: ${stats.streak} | Time: ${formattedTime} | Date: ${getDay(stats.date)}\n\n`;
-    }
-
-    if (type === 'solo') {
-      let overall = "**Overall Stats**\n";
-      const userLbStats = userLbSolo[user.id]
-      const accuracy = (locsPlayed === 0) ? 0 : (totalCorrect / locsPlayed * 100).toFixed(2);
-      overall += `Locations Played: ${locsPlayed} | Accuracy: ${accuracy}% | Average Time: ${formatTime(totalTime / locsPlayed)}\n`;
-      overall += `Total Rank: ${userLbStats.totalRank} | Total Streak: ${userLbStats.totalStreak} | Maps Played: ${userLbStats.mapsPlayed}\n\n`;
-      description = overall + description;
+      if (type === 'overall') {
+        const accuracy = (stats.totalCorrect / stats.locsPlayed * 100).toFixed(2);
+        description += `Locations Played: ${stats.locsPlayed} | Accuracy: ${accuracy}% | Average Time: ${formatTime(stats.totalTime / stats.locsPlayed)}\n\n`;
+      } else {
+        description += `Rank: ${positionString} | Best Streak: ${stats.streak} | Time: ${formattedTime} | Date: ${getDay(stats.date)}\n\n`;
+      }
     }
 
     embed.setDescription(description);
     embed.setFooter({ text: `Page ${page} of ${Math.ceil(Object.keys(userStats).length / maps)}` });
+    embeds.push(embed);
 
     if (!stats) {
-      stats = await interaction.reply({ embeds: [embed], components: [navigation] });
+      stats = await interaction.reply({ embeds, components: [navigation] });
     } else {
-      await interaction.editReply({ embeds: [embed], components: [navigation] });
+      await interaction.editReply({ embeds, components: [navigation] });
     }
+    embeds.pop();
   }
 
   await updatePb();
@@ -978,12 +998,12 @@ export async function showUserLb(interaction, type, sort) {
     let description = "";
     userLb.slice(places * (page - 1), places * page).forEach((entry, index) => {
       const realIndex = places * (page - 1) + index;
-      const medal = realIndex === 1 ? '🥇' : realIndex === 2 ? '🥈' : realIndex === 3 ? '🥉' : `${realIndex}.`;
+      const medal = realIndex === 0 ? '🥇' : realIndex === 1 ? '🥈' : realIndex === 2 ? '🥉' : `${realIndex + 1}.`;
       let streakData;
       if (sort === 'rank') {
-        streakData = `Total Rank: ${entry[1].totalRank} | Total Streak: ${entry[1].totalStreak}`;
+        streakData = `Rank Sum: ${entry[1].totalRank} | Streak Sum: ${entry[1].totalStreak}`;
       } else {
-        streakData = `Total Streak: ${entry[1].totalStreak} | Maps Played: ${entry[1].mapsPlayed}`;
+        streakData = `Streak Sum: ${entry[1].totalStreak} | Maps Played: ${entry[1].mapsPlayed}`;
       }
       description += `${medal} **<@${entry[0]}>** - ${streakData}\n`;
     });
@@ -1026,18 +1046,25 @@ async function saveOverallStats(userId) {
     const streaks = pbStreaks[userId];
     if (!streaks) return;
     let totalRank = 0, totalStreak = 0;
+    let locsPlayed = 0, totalTime = 0, totalCorrect = 0;
     for (const [mapName, stats] of Object.entries(streaks)) {
       totalRank += 1 + findObjectIndex(
         lbStreaks[mapName],
         String(stats.date)
       );
       totalStreak += stats.streak;
+      locsPlayed += stats.locsPlayed || 0;
+      totalTime += stats.totalTime || 0;
+      totalCorrect += stats.totalCorrect || 0;
     }
     if (totalStreak === 0) return;
     const entry = {
       totalRank,
       totalStreak,
-      mapsPlayed: Object.keys(streaks).length
+      mapsPlayed: Object.keys(streaks).length,
+      locsPlayed,
+      totalTime,
+      totalCorrect
     };
     if (type === 'solo') userLbSolo[userId] = entry;
     else userLbMulti[userId] = entry;

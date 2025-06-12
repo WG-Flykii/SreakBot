@@ -66,6 +66,7 @@ async function handlePlayerCommands(message) {
         return message.reply("❌ There's no ongoing game to stop in this channel.");
       }
 
+      const currentLoc = quiz.locs[0];
       if (!quiz.saveStreaks) {
         delete mapCache[mapToSlug(quiz.mapName)];
         delete quizzes[channelId];
@@ -80,8 +81,7 @@ async function handlePlayerCommands(message) {
         )
         .setColor('#f39c12')
       
-      const currentLoc = quiz.locs[0];
-      if (currentLoc.location) {
+      if (currentLoc && currentLoc.location) {
         stopEmbed.addFields(
           {
             name: "Exact Location",
@@ -129,18 +129,26 @@ async function handlePlayerCommands(message) {
           { name: `${prefix}play <map>`, value: 'Start a new quiz with the specified map' },
           { name: `${prefix}g <country>`, value: 'Submit your guess for the current quiz' },
           { name: `${prefix}maps`, value: 'Show all available maps' },
-          { name: `${prefix}stats`, value: 'Show your personal stats and records' },
+          { name: `${prefix}map <map>`, value: 'Show alias and distribution for a map' },
           { name: `${prefix}invite <@user>`, value: 'Invite a user to your private thread *(only works in threads)*' },
-          { name: `${prefix}kick <@user>`, value: 'Kick a user from your private thread *(only works in threads)*' }
+          { name: `${prefix}kick <@user>`, value: 'Kick a user from your private thread *(only works in threads)*' },
+          { name: `/stats <type> <@user>`, value: 'Show the personal stats for a user (solo or multi)' },
+          { name: `/leaderboard <type> <map>`, value: 'Show the leaderboard for a map (solo or multi)' },
+          { name: `/userlb <type> <sort>`, value: 'Show the overall user leaderboard (solo or multi), sorted by total rank or streak.' }
         )
         .setColor('#3498db');
       await message.reply({ embeds: [helpEmbed] });
       break;
     
     case 'map':
+      if (args.length === 0) {
+        await message.reply({ content: 'Please specify a map.', embeds: [availableMapsEmbed()] });
+        return;
+      }
       const map = mapAliases[args.join(' ').trim().toLowerCase()];
       if (!map) {
         await message.reply({ content: `Map "${map}" not found.`, embeds: [availableMapsEmbed()] });
+        return;
       }
 
       const aliasesString = mapData[map].aliases.join('\n');
@@ -195,7 +203,12 @@ async function handleAdminCommands(message) {
         .setDescription("Here are all the available admin commands")
         .addFields(
           { name: `${prefix}help`, value: 'Show the admin help message' },
-          { name: `${prefix}private_msg`, value: "Create an announcement message to create private quizzes" }
+          { name: `${prefix}private_msg`, value: "Create an announcement message to create private quizzes" },
+          { name: `${prefix}refresh_userlb`, value: "Refreshes userlb, in case something goes wrong"},
+          { name: `/setup`, value: "Creates recommended channels for StreakBot"},
+          { name: `/create-channels`, value: "Sets up StreakBot channels"},
+          { name: `/add-map`, value: "Adds a map to the officially supported maps"},
+          { name: `/delete-map`, value: "Deletes a map from the officially supported maps"}
         )
         .setColor('#3498db');
       await message.reply({ embeds: [helpEmbed] });
