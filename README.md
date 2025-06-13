@@ -1,6 +1,6 @@
 # 🌍 **StreakBot**
 
-Made by **Flykii (@flykii)** for the [WorldGuessr Discord](https://discord.gg/nfebQwes6a)
+Made by **Flykii (@flykii)** and **Beans (@cansinabean)** for the [WorldGuessr Discord](https://discord.gg/nfebQwes6a)
 Play Worldguessr at https://worldguessr.com.
 Feel free to use it on your own server!
 
