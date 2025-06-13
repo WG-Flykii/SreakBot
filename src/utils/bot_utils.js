@@ -316,6 +316,29 @@ export async function handleGuess(message, guess) {
   const now = Date.now();
   const quizTime = now - quiz.loadTime;
 
+  if (quizzes[channelId].saveStreaks) {
+    if (!pbStreaksSolo[userId]) {
+      pbStreaksSolo[userId] = {};
+    }
+    if (!pbStreaksMulti[userId]) {
+      pbStreaksMulti[userId] = {};
+    }
+    if (!lbStreaksSolo[mapName]) {
+      lbStreaksSolo[mapName] = {};
+    }
+    if (!lbStreaksMulti[mapName]) {
+      lbStreaksMulti[mapName] = {};
+    }
+    if (!pbStreaksSolo[userId][mapName]) {
+      pbStreaksSolo[userId][mapName] = {};
+    }
+    if (!pbStreaksSolo[userId][mapName].locsPlayed) {
+      pbStreaksSolo[userId][mapName].locsPlayed = 0;
+      pbStreaksSolo[userId][mapName].totalTime = 0;
+      pbStreaksSolo[userId][mapName].totalCorrect = 0;
+    }
+  }
+
   if (isCorrect) {
     if (!quiz.participants.some(p => p === message.author.id)) {
       quiz.participants.push(message.author.id);
@@ -331,19 +354,6 @@ export async function handleGuess(message, guess) {
 
     quiz.solo.averageTime += (quizTime - quiz.solo.averageTime) / quiz.solo.streak; // Math trick
     quiz.multi.averageTime += (quizTime - quiz.multi.averageTime) / quiz.multi.streak; // Math trick
-
-    if (!pbStreaksSolo[userId]) {
-      pbStreaksSolo[userId] = {};
-    }
-    if (!pbStreaksMulti[userId]) {
-      pbStreaksMulti[userId] = {};
-    }
-    if (!lbStreaksSolo[mapName]) {
-      lbStreaksSolo[mapName] = {};
-    }
-    if (!lbStreaksMulti[mapName]) {
-      lbStreaksMulti[mapName] = {};
-    }
 
     if (quizzes[channelId].saveStreaks) {
       const soloEntry = {
@@ -452,23 +462,11 @@ export async function handleGuess(message, guess) {
         saveJsonFile(MULTI_PB_STREAK_PATH, pbStreaksMulti);
       }
 
-      if (!pbStreaksSolo[userId][mapName].locsPlayed) {
-        pbStreaksSolo[userId][mapName].locsPlayed = 0;
-        pbStreaksSolo[userId][mapName].totalTime = 0;
-        pbStreaksSolo[userId][mapName].totalCorrect = 0;
-        userLbSolo[userId].locsPlayed = 0;
-        userLbSolo[userId].totalTime = 0;
-        userLbSolo[userId].totalCorrect = 0;
-      }
       pbStreaksSolo[userId][mapName].locsPlayed++;
       pbStreaksSolo[userId][mapName].totalTime += quizTime;
       pbStreaksSolo[userId][mapName].totalCorrect++;
-      userLbSolo[userId].locsPlayed++;
-      userLbSolo[userId].totalTime += quizTime;
-      userLbSolo[userId].totalCorrect++;
-      userLbSolo[userId].mapsPlayed = Object.keys(pbStreaksSolo[userId]).length;
 
-      saveOverallStats(userId)
+      saveOverallStats(userId);
 
       saveJsonFile(SOLO_PB_STREAK_PATH, pbStreaksSolo);
       saveJsonFile(SOLO_LB_STREAK_PATH, lbStreaksSolo);
@@ -504,24 +502,14 @@ export async function handleGuess(message, guess) {
     const participantsList = userList(quiz.participants);
 
     if (quizzes[channelId].saveStreaks) {
-      if (!pbStreaksSolo[userId][mapName]) {
-        pbStreaksSolo[userId][mapName] = {};
-      }
-      if (!pbStreaksSolo[userId][mapName].locsPlayed) {
-        pbStreaksSolo[userId][mapName].locsPlayed = 0;
-        pbStreaksSolo[userId][mapName].totalTime = 0;
-        pbStreaksSolo[userId][mapName].totalCorrect = 0;
-        userLbSolo[userId].locsPlayed = 0;
-        userLbSolo[userId].totalTime = 0;
-        userLbSolo[userId].totalCorrect = 0;
-      }
       pbStreaksSolo[userId][mapName].locsPlayed++;
       pbStreaksSolo[userId][mapName].totalTime += quizTime;
-      userLbSolo[userId].locsPlayed++;
-      userLbSolo[userId].totalTime += quizTime;
-      userLbSolo[userId].mapsPlayed = Object.keys(pbStreaksSolo[userId]).length;
     }
+
+    saveOverallStats(userId);
+
     saveJsonFile(SOLO_PB_STREAK_PATH, pbStreaksSolo);
+    saveJsonFile(SOLO_USERLB_PATH, userLbSolo);
 
     await message.reply({
       embeds: [
@@ -1065,9 +1053,9 @@ async function saveOverallStats(userId) {
     };
     if (type === 'solo') {
       if (!userLbSolo[userId]) userLbSolo[userId] = {};
-      userLbSolo[userId].locsPlayed = locsPlayed;
-      userLbSolo[userId].totalTime = totalTime;
-      userLbSolo[userId].totalCorrect = totalCorrect;
+      entry.locsPlayed = locsPlayed;
+      entry.totalTime = totalTime;
+      entry.totalCorrect = totalCorrect;
       userLbSolo[userId] = entry;
     } else {
       if (!userLbMulti[userId]) userLbMulti[userId] = {};
