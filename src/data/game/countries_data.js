@@ -368,10 +368,6 @@ export const COUNTRIES = {
         "flag": "🇲🇪",
         "aliases": ["montenegro", "me", "🇲🇪"]
     },
-    "macedonia": {
-        "flag": "🇲🇰",
-        "aliases": ["macedonia", "mk", "🇲🇰"]
-    },
     "malta": {
         "flag": "🇲🇹",
         "aliases": ["malta", "mt", "🇲🇹"]
@@ -379,6 +375,10 @@ export const COUNTRIES = {
     "netherlands": {
         "flag": "🇳🇱",
         "aliases": ["netherlands", "nl", "🇳🇱"]
+    },
+    "north macedonia": {
+        "flag": "🇲🇰",
+        "aliases": ["north macedonia", "mk", "🇲🇰"]
     },
     "norway": {
         "flag": "🇳🇴",
