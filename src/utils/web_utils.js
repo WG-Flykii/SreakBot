@@ -169,7 +169,7 @@ export function getWorldGuessrEmbedUrl(location) {
   return `${baseUrl}?${params.toString()}`;
 }
 
-export async function fetchMapLocations(mapName) {
+export async function fetchMapLocations(mapName, saveStreaks = true) {
   const slug = mapToSlug(mapName);
   const url = `https://api.worldguessr.com/mapLocations/${slug}`;
   console.log(`Fetching map locations for ${mapName} at ${url}`);
@@ -184,7 +184,7 @@ export async function fetchMapLocations(mapName) {
     throw new Error(`Map "${mapName}" is not ready or contains no locations.`);
   }
 
-  mapCache[slug] = data.locations;
+  if (saveStreaks) mapCache[slug] = data.locations;
   return [data.name, data.locations];
 }
 
@@ -203,7 +203,7 @@ export async function preloadLocationCache() {
             const locationInfo = await getCountryFromCoordinates(location.lat, location.lng);
             if (!locationInfo || !locationInfo.country) {
               console.log(`Unknown location for coordinates ${location.lat}, ${location.lng}. Deleting from map ${mapName}.`);
-              mapCache[maps[mapName]].splice(i, 1);
+              mapCache[mapToSlug(mapName)].splice(i, 1);
               continue;
             }
             locationCache[cacheKey] = locationInfo;
@@ -220,7 +220,7 @@ export async function preloadLocationCache() {
   console.log(`Location cache preloaded with ${Object.keys(locationCache).length} entries`);
 }
 
-export async function takeScreenshot(url, channelId) {
+export async function takeScreenshot(url, channelId = 0) {
   let page;
   let newPageCreated = false;
 
@@ -265,38 +265,10 @@ export async function takeScreenshot(url, channelId) {
       await page.waitForFunction(() => {
         const canvas = document.querySelector('canvas');
         return canvas && canvas.offsetWidth > 0;
-      }, { timeout: 5000 });
+      }, { timeout: 7000 });
     } catch (e) {
       console.log("No canvas found, attempting to capture anyway");
     }
-
-    /*
-    let canProceed = false;
-    while (!canProceed && (Date.now() - loadTime < 3000)) {
-      canProceed = await page.evaluate(() => {
-        const canvas = document.querySelector('canvas');
-        if (!canvas) return false;
-
-        try {
-          const ctx = canvas.getContext('2d');
-          const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-
-          let nonBlackPixels = 0;
-          for (let i = 0; i < data.length; i += 30000) {
-            if (data[i] > 20 || data[i+1] > 20 || data[i+2] > 20) nonBlackPixels++;
-            if (nonBlackPixels > 3) return true;
-          }
-
-          return false;
-        } catch(e) {
-          return window._canvasReady;
-        }
-      });
-
-      if (!canProceed) {
-        await new Promise(resolve => setTimeout(resolve, 1500));
-      }
-    }*/
 
     const screenshotBuffer = await page.screenshot({
       fullPage: false,

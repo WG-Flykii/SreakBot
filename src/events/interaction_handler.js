@@ -7,7 +7,7 @@ import { dirname } from 'path';
 import { mapData, mapAliases, refreshMaps } from '../data/game/maps_data.js';
 
 import { saveJsonFile } from '../utils/json_utils.js';
-import { serverConfig, checkQuizChannel, checkAdminChannel, createPrivateThread, showLeaderboard, showPersonalStats } from '../utils/bot_utils.js';
+import { serverConfig, checkQuizChannel, checkAdminChannel, createPrivateThread, showLeaderboard, showPersonalStats, showUserLb } from '../utils/bot_utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -23,7 +23,7 @@ export async function handleInteraction(interaction) {
   }
 
   const guild = interaction.guild;
-  let type, map, user;
+  let type, map, user, sort;
 
   switch (interaction.commandName) {
     // #region -- Config --
@@ -31,8 +31,9 @@ export async function handleInteraction(interaction) {
       const createQuizId = interaction.options.getChannel('create-private-quiz-channel').id;
       const quizId = interaction.options.getChannel('quiz-channel').id;
       const adminId = interaction.options.getChannel('admin-channel').id;
+      const prefix = interaction.options.getString('prefix') ?? '!';
 
-      serverConfig[guild.id] = { createQuizId, quizId, adminId };
+      serverConfig[guild.id] = { createQuizId, quizId, adminId, prefix };
       saveJsonFile(SERVER_CONFIG_PATH, serverConfig);
 
       await interaction.reply({ content: `Finished setting up StreakBot!`, flags: MessageFlags.Ephemeral});
@@ -64,7 +65,11 @@ export async function handleInteraction(interaction) {
       if (!(await checkAdminChannel(interaction))) return;
 
       const addName = interaction.options.getString('name');
-      const aliases = interaction.options.getString('aliases').split(',').map(item => item.trim());
+      const aliases = interaction.options.getString('aliases')
+        .toLowerCase()
+        .split(',')
+        .map(item => item.trim())
+        .push(addName.toLowerCase());
       const distribution = interaction.options.getAttachment('distribution');
 
       if (distribution) {
@@ -126,8 +131,18 @@ export async function handleInteraction(interaction) {
 
       type = interaction.options.getString('type');
       user = interaction.options.getUser('user');
+      if (!user) user = interaction.user;
 
       await showPersonalStats(interaction, user, type)
+      break;
+    
+    case 'userlb':
+      if (!(await checkQuizChannel(interaction))) return;
+
+      type = interaction.options.getString('type');
+      sort = interaction.options.getString('sort');
+
+      await showUserLb(interaction, type, sort);
       break;
     // #endregion
   }

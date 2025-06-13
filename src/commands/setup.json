@@ -21,6 +21,12 @@
 			"description": "The channel where admins can control the bot",
 			"type": 7,
 			"required": true
+		},
+		{
+			"name": "prefix",
+			"description": "The prefix for bot commands (default !)",
+			"type": 3,
+			"required": false
 		}
 	]
 }

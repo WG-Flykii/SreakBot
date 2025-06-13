@@ -25,7 +25,7 @@
 		},
         {
 			"name": "map",
-			"description": "The name of the map (you may enter an alias)",
+			"description": "The name of the map. Putting nothing will result in an overall leaderboard.",
 			"type": 3,
 			"required": true
 		}
