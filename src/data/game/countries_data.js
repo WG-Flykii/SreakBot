@@ -800,7 +800,7 @@ export const COUNTRIES = {
         "flag": "🇵🇰",
         "aliases": ["pakistan", "pk", "🇵🇰"]
     },
-    "palestine": {
+    "palestinian territory": {
         "flag": "🇵🇸",
         "aliases": ["palestine", "ps", "🇵🇸"]
     },
@@ -1002,7 +1002,7 @@ export const COUNTRIES = {
         "flag": "🇸🇯",
         "aliases": ["svalbard and jan mayen", "sj", "🇸🇯", "svalbard"]
     },
-    "sao tome and principe": {
+    "são tomé and príncipe": {
         "flag": "🇸🇹",
         "aliases": ["sao tome and principe", "st", "🇸🇹"]
     },

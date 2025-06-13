@@ -111,7 +111,7 @@ async function handlePlayerCommands(message) {
       }
       const mapName = args.length > 0 ? args.join(' ').trim() : null;
 
-      await newLoc(message.channel, quizId, mapName, message.author.id);
+      await newLoc(message.channel, quizId, mapName);
       break;
 
     case 'maps':
@@ -177,7 +177,7 @@ async function handlePlayerCommands(message) {
       break;
     
     case 'reload':
-      await newLoc(message.channel, quizId, null, message.author.id, true);
+      await newLoc(message.channel, quizId, null, true);
       break;
   }
 }

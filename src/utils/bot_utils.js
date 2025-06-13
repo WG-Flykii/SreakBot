@@ -153,7 +153,7 @@ export async function loadLoc(locations, channel, reload = false) {
   else quizzes[channel.id].locs.push(quiz);
 }
 
-export async function newLoc(channel, quizId, mapName = null, userId = null, reload = false) {
+export async function newLoc(channel, quizId, mapName = null, reload = false) {
   if (!isQuizChannel(channel, quizId)) {
     await channel.send("Quizzes can only be played in the designated channel or its threads.");
     return;
@@ -163,7 +163,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null, rel
 
   let loadingMessage;
   let saveStreaks = true;
-  //try {
+  try {
     const isFirst = !quizzes[channel.id];
     const channelData = quizzes[channel.id] || {};
     quizzes[channel.id] = {
@@ -263,7 +263,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null, rel
     console.log(JSON.stringify(currentLoc.address, null, 2));
 
     quizzes[channel.id].retries = 0;
-  /*} catch (error) {
+  } catch (error) {
     if (!quizzes[channel.id]) return;
     console.error(`Error starting quiz: ${error}`);
     quizzes[channel.id].retries++;
@@ -275,7 +275,7 @@ export async function newLoc(channel, quizId, mapName = null, userId = null, rel
     await channel.send(`An error occurred while creating the quiz. Using ${quizzes[channel.id].retries} out of ${locRetries} retries.`);
     if (loadingMessage) await loadingMessage.delete();
     newLoc(channel, quizId, mapName, userId);
-  }*/
+  }
 }
 
 function compareStreaks(a, b) {
@@ -497,7 +497,7 @@ export async function handleGuess(message, guess) {
 
     // To check when stopped
     if (!quizzes[channelId]) return;
-    await newLoc(message.channel, quizId, quiz.mapName, message.author.id);
+    await newLoc(message.channel, quizId, quiz.mapName);
   } else {
     const participantsList = userList(quiz.participants);
 
