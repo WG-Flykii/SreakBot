@@ -976,7 +976,7 @@ export async function showUserLb(interaction, type, sort) {
       if (a.totalStreak !== b.totalStreak) {
         return b.totalStreak - a.totalStreak;
       }
-      return b.mapsPlayed - b.mapsPlayed;
+      return b.mapsPlayed - a.mapsPlayed;
     });
   } else {
     userLb = userLb.filter(entry => entry[1].mapsPlayed === mapNames.length);
@@ -984,7 +984,7 @@ export async function showUserLb(interaction, type, sort) {
       if (a.totalRank !== b.totalRank) {
         return a.totalRank - b.totalRank;
       }
-      return b.totalStreak - b.totalStreak;
+      return b.totalStreak - a.totalStreak;
     });
   }
 
