@@ -6,7 +6,14 @@ import { dirname } from 'path';
 
 import { mapToSlug, mapAliases, mapData } from '../data/game/maps_data.js';
 
-import { getCreateQuizId, getQuizId, getAdminId, getPrefix, quizzes, isQuizChannel, newLoc, handleGuess, sendPrivateMessageOffer, availableMapsEmbed, refreshUserLb } from '../utils/bot_utils.js';
+import {
+  getCreateQuizId, getQuizId, getAdminId, getPrefix, isQuizChannel,
+  quizzes, locs,
+  newLoc, handleGuess,
+  sendPrivateMessageOffer,
+  availableMapsEmbed,
+  refreshUserLb
+} from '../utils/bot_utils.js';
 import { mapCache } from '../utils/web_utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -66,7 +73,7 @@ async function handlePlayerCommands(message) {
         return message.reply("❌ There's no ongoing game to stop in this channel.");
       }
 
-      const currentLoc = quiz.locs[0];
+      const currentLoc = locs[channelId][quiz.mapName][0];
       if (!quiz.saveStreaks) {
         delete mapCache[mapToSlug(quiz.mapName)];
         delete quizzes[channelId];
