@@ -75,7 +75,7 @@ async function handlePlayerCommands(message) {
 
       const currentLoc = locs[channelId][quiz.mapName][0];
       if (!quiz.saveStreaks) {
-        delete mapCache[mapToSlug(quiz.mapName)];
+        delete locs[channelId][quiz.mapName];
         delete quizzes[channelId];
         await message.channel.send('Streaks not saved - not an official map.');
       } else delete quizzes[channelId];

@@ -974,7 +974,7 @@ export async function showUserLb(interaction, type, sort) {
       if (a.totalStreak !== b.totalStreak) {
         return b.totalStreak - a.totalStreak;
       }
-      return b.mapsPlayed - a.mapsPlayed;
+      return a.mapsPlayed - b.mapsPlayed;
     });
   } else {
     userLb = userLb.filter(entry => entry[1].mapsPlayed === mapNames.length);
