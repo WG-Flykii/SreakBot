@@ -12,6 +12,7 @@ import { loadJsonFile, saveJsonFile } from './json_utils.js';
 import { initializeResources, getCountryFromCoordinates, getWorldGuessrEmbedUrl, fetchMapLocations, takeScreenshot, mapCache } from './web_utils.js';
 
 export let quizzes = {};
+export let locs = {};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -122,10 +123,11 @@ export function isQuizChannel(channel, quizId) {
   return false;
 }
 
-export async function loadLoc(locations, channel, reload = false) {
+export async function loadLoc(channelId, mapName, reload = false, locations = null) {
   let quiz = {};
+  if (!locations) locations = quizzes[channelId].mapLocations;
   try {
-    if (reload) quiz = quizzes[channel.id].locs[0];
+    if (reload) quiz = locs[channelId][mapName][0];
     else {
       let locationIndex = Math.floor(Math.random() * locations.length);
       let location = locations[locationIndex];
@@ -138,19 +140,39 @@ export async function loadLoc(locations, channel, reload = false) {
     }
 
     const embedUrl = getWorldGuessrEmbedUrl(quiz.location);
+    //console.log(`Navigating to ${embedUrl}`)
     const start = Date.now();
-    if (!quizzes[channel.id]) return;
-    const screenshotBuffer = await takeScreenshot(embedUrl, channel.id);
+    if (!locations && !quizzes[channelId]) return;
+    const screenshotBuffer = await takeScreenshot(embedUrl, channelId);
     console.log('Screenshot took', Date.now()-start);
 
     quiz.image = new AttachmentBuilder(screenshotBuffer, { name: 'quiz_location.jpg' });
   } catch (error) {
-    console.log(`Quiz error in channel ${channel.id}:`, error);
+    console.log(`Quiz error in channel ${channelId}:`, error);
   }
   
-  if (!quizzes[channel.id]) return;
-  if (reload) quizzes[channel.id].locs[0] = quiz;
-  else quizzes[channel.id].locs.push(quiz);
+  if (!locations && !quizzes[channelId]) return;
+  if (reload) locs[channelId][mapName][0] = quiz;
+  else locs[channelId][mapName].push(quiz);
+}
+
+async function preloadAllMaps(channelId) {
+  for (const mapName of mapNames) {
+    const [,mapLocations] = await fetchMapLocations(mapName);
+    console.log(`Preloading locs for map ${mapName} in channel ${channelId}`);
+    await preloadMap(channelId, mapName, mapLocations);
+  }
+}
+
+async function preloadMap(channelId, mapName, locations = null) {
+  if (!locs[channelId]) locs[channelId] = {};
+  if (locs[channelId][mapName]) return;
+
+  locs[channelId][mapName] = [];
+  return Promise.all(Array.from(
+    { length: preloadLocs },
+    () => loadLoc(channelId, mapName, false, locations)
+  ));
 }
 
 export async function newLoc(channel, quizId, mapName = null, reload = false) {
@@ -159,11 +181,11 @@ export async function newLoc(channel, quizId, mapName = null, reload = false) {
     return;
   }
 
-  if (reload && !(quizzes[channel.id] && quizzes[channel.id].locs)) return;
+  if (reload && !(quizzes[channel.id] && quizzes[channel.id].processed)) return;
 
   let loadingMessage;
   let saveStreaks = true;
-  try {
+  //try {
     const isFirst = !quizzes[channel.id];
     const channelData = quizzes[channel.id] || {};
     quizzes[channel.id] = {
@@ -180,7 +202,6 @@ export async function newLoc(channel, quizId, mapName = null, reload = false) {
       participants: channelData.participants || [],
       retries: channelData.retries || 0,
       processed: false,
-      locs: channelData.locs || [],
       mapName: channelData.mapName,
       mapLocations: channelData.mapLocations,
       saveStreaks: channelData.saveStreaks,
@@ -207,6 +228,7 @@ export async function newLoc(channel, quizId, mapName = null, reload = false) {
 
       if (!mapLocations) {
         channel.send(`Map "${mapName}" does not exist, or error fetching locations.`);
+        delete quizzes[channel.id];
         return;
       }
     }
@@ -223,28 +245,25 @@ export async function newLoc(channel, quizId, mapName = null, reload = false) {
 
     if (!quizzes[channel.id]) return;
 
+    mapName = quizzes[channel.id].mapName;
     if (reload) {
       // This needs to be blocking
-      await loadLoc(quizzes[channel.id].mapLocations, channel, true).then();
+      await loadLoc(channel.id, mapName, true).then();
     } else {
-      if (isFirst) {
-        // To not block, use then
-        Promise.all(Array.from(
-          { length: preloadLocs },
-          () => loadLoc(quizzes[channel.id].mapLocations, channel)
-        )).then();
-      } else {
-        quizzes[channel.id].locs.shift();
-        loadLoc(quizzes[channel.id].mapLocations, channel).then();
+      if (!locs[channel.id]) locs[channel.id] = {}
+      if (!locs[channel.id][mapName]) preloadMap(channel.id, mapName).then();
+      else {
+        locs[channel.id][mapName].shift();
+        loadLoc(channel.id, mapName).then();
       }
 
-      while (quizzes[channel.id].locs.length === 0) {
+      while (locs[channel.id][mapName].length === 0) {
         if (!quizzes[channel.id]) return;
         await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
 
-    const currentLoc = quizzes[channel.id].locs[0];
+    const currentLoc = locs[channel.id][mapName][0];
     quizzes[channel.id].processed = true;
 
     const embed = new EmbedBuilder()
@@ -257,13 +276,14 @@ export async function newLoc(channel, quizId, mapName = null, reload = false) {
     if (!quizzes[channel.id]) return;
     await channel.send({ embeds: [embed], files: [currentLoc.image] });
     await loadingMessage.delete();
+    if (!quizzes[channel.id]) return;
     quizzes[channel.id].loadTime = Date.now();
 
     console.log(`New quiz started in channel ${channel.id}. Map: ${quizzes[channel.id].mapName}, Answer: ${currentLoc.country}`);
     console.log(JSON.stringify(currentLoc.address, null, 2));
 
     quizzes[channel.id].retries = 0;
-  } catch (error) {
+  /*} catch (error) {
     if (!quizzes[channel.id]) return;
     console.error(`Error starting quiz: ${error}`);
     quizzes[channel.id].retries++;
@@ -274,8 +294,8 @@ export async function newLoc(channel, quizId, mapName = null, reload = false) {
     }
     await channel.send(`An error occurred while creating the quiz. Using ${quizzes[channel.id].retries} out of ${locRetries} retries.`);
     if (loadingMessage) await loadingMessage.delete();
-    newLoc(channel, quizId, mapName, userId);
-  }
+    newLoc(channel, quizId, mapName);
+  }*/
 }
 
 function compareStreaks(a, b) {
@@ -292,8 +312,8 @@ export async function handleGuess(message, guess) {
   if (!quizzes[message.channel.id]
     || !quizzes[message.channel.id].processed) return;
 
-  const currentLoc = quizzes[message.channel.id].locs[0];
   const channelId = message.channel.id;
+  const currentLoc = locs[channelId][quizzes[channelId].mapName][0];
   quizzes[channelId].processed = false;
   const quiz = quizzes[channelId];
   if (!quizzes[channelId]) return;
@@ -583,10 +603,12 @@ export async function createPrivateThread(interaction, userId) {
       ]
     });
 
-    return interaction.editReply({
+    await interaction.editReply({
       content: `Your private quiz thread has been created! [Join thread](https://discord.com/channels/${interaction.guild.id}/${thread.id})`,
       flags: MessageFlags.Ephemeral
     });
+
+    await preloadAllMaps(thread.id);
   } catch (error) {
     console.error('Error creating thread:', error);
 
@@ -1155,8 +1177,10 @@ export async function botStart() {
   console.log(`Logged in as ${client.user.tag}!`);
   initializeThreadCleanup();
   try {
-    await initializeResources();
+    initializeResources().then();
   } catch (error) {
     console.error("Erreur lors de l'initialisation des ressources:", error);
   }
+  const allQuizIds = Object.values(serverConfig).map(config => config.quizId);
+  for (const quizId of allQuizIds) await preloadAllMaps(quizId);
 }
