@@ -185,7 +185,7 @@ export async function newLoc(channel, quizId, mapName = null, reload = false) {
 
   let loadingMessage;
   let saveStreaks = true;
-  //try {
+  try {
     const isFirst = !quizzes[channel.id];
     const channelData = quizzes[channel.id] || {};
     quizzes[channel.id] = {
@@ -283,7 +283,7 @@ export async function newLoc(channel, quizId, mapName = null, reload = false) {
     console.log(JSON.stringify(currentLoc.address, null, 2));
 
     quizzes[channel.id].retries = 0;
-  /*} catch (error) {
+  } catch (error) {
     if (!quizzes[channel.id]) return;
     console.error(`Error starting quiz: ${error}`);
     quizzes[channel.id].retries++;
@@ -295,7 +295,7 @@ export async function newLoc(channel, quizId, mapName = null, reload = false) {
     await channel.send(`An error occurred while creating the quiz. Using ${quizzes[channel.id].retries} out of ${locRetries} retries.`);
     if (loadingMessage) await loadingMessage.delete();
     newLoc(channel, quizId, mapName);
-  }*/
+  }
 }
 
 function compareStreaks(a, b) {
