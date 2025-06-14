@@ -4,17 +4,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
-import { mapToSlug, mapAliases, mapData } from '../data/game/maps_data.js';
+import { mapAliases, mapData } from '../data/game/maps_data.js';
 
-import {
-  getCreateQuizId, getQuizId, getAdminId, getPrefix, isQuizChannel,
-  quizzes, locs,
-  newLoc, handleGuess,
-  sendPrivateMessageOffer,
-  availableMapsEmbed,
-  refreshUserLb
-} from '../utils/bot_utils.js';
-import { mapCache } from '../utils/web_utils.js';
+import { quizzes, locs, newLoc, handleGuess } from '../bot/game.js';
+import { sendPrivateMessageOffer } from '../bot/private_quiz.js';
+import { refreshUserLb } from '../bot/stats.js';
+import { getCreateQuizId, getQuizId, getAdminId, getPrefix, isQuizChannel, availableMapsEmbed } from '../utils/bot_utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
