@@ -205,7 +205,6 @@ export async function preloadLocationCache() {
               mapCache[mapToSlug(mapName)].splice(i, 1);
               continue;
             }
-            locationCache[cacheKey] = locationInfo;
           } catch (e) {
             console.error(`Error preloading cache for ${cacheKey}:`, e);
           }
