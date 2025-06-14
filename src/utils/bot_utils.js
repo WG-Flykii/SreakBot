@@ -607,8 +607,6 @@ export async function createPrivateThread(interaction, userId) {
       content: `Your private quiz thread has been created! [Join thread](https://discord.com/channels/${interaction.guild.id}/${thread.id})`,
       flags: MessageFlags.Ephemeral
     });
-
-    await preloadAllMaps(thread.id);
   } catch (error) {
     console.error('Error creating thread:', error);
 
@@ -976,7 +974,7 @@ export async function showUserLb(interaction, type, sort) {
       if (a.totalStreak !== b.totalStreak) {
         return b.totalStreak - a.totalStreak;
       }
-      return b.mapsPlayed - b.mapsPlayed;
+      return b.mapsPlayed - a.mapsPlayed;
     });
   } else {
     userLb = userLb.filter(entry => entry[1].mapsPlayed === mapNames.length);
@@ -984,7 +982,7 @@ export async function showUserLb(interaction, type, sort) {
       if (a.totalRank !== b.totalRank) {
         return a.totalRank - b.totalRank;
       }
-      return b.totalStreak - b.totalStreak;
+      return b.totalStreak - a.totalStreak;
     });
   }
 

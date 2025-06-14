@@ -47,7 +47,6 @@ export async function getBrowser() {
     if (browserPool) {
       try {
         await browserPool.close();
-        browserPage = null;
       } catch (err) {
         console.error("Error closing old browser:", err);
       }
