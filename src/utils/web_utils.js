@@ -247,7 +247,6 @@ export async function takeScreenshot(url, channelId = 0) {
       };
     });
 
-    //console.log(`Navigating to URL: ${url} for channel ${channelId}`);
     await page.goto(url, {
       waitUntil: 'load',
       timeout: 50000

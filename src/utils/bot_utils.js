@@ -140,7 +140,6 @@ export async function loadLoc(channelId, mapName, reload = false, locations = nu
     }
 
     const embedUrl = getWorldGuessrEmbedUrl(quiz.location);
-    //console.log(`Navigating to ${embedUrl}`)
     const start = Date.now();
     if (!locations && !quizzes[channelId]) return;
     const screenshotBuffer = await takeScreenshot(embedUrl, channelId);
