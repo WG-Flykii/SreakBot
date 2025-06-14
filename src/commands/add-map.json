@@ -3,22 +3,6 @@
 	"type": 1,
 	"description": "Adds a map to the available maps, or changes an existing map.",
     "options": [
-		{
-			"name": "type",
-			"description": "The type of map",
-			"type": 3,
-			"required": true,
-			"choices": [
-				{
-					"name": "world",
-					"value": "world"
-				},
-				{
-					"name": "country",
-					"value": "country"
-				}
-			]
-		},
         {
 			"name": "name",
 			"description": "The name of the map",

@@ -18,15 +18,22 @@ export function setClient(client) {
   global.client = client;
 }
 
+export function isQuizChannel(channel) {
+  const quizId = getQuizId(channel);
+  if (channel.id === quizId) return true;
+  if (channel.isThread() && channel.parentId === quizId) return true;
+  return false;
+}
+
 export async function checkQuizChannel(interaction) {
-  if (!getQuizId(interaction)) {
+  const quizId = getQuizId(interaction);
+  if (!quizId) {
     await interaction.reply({ content: `The server has not been set up yet for StreakBot.`, flags: MessageFlags.Ephemeral});
     return false;
   }
 
-  const channel = await client.channels.fetch(getQuizId(interaction));
-  if (interaction.channel !== channel) {
-    await interaction.reply({ content: `This command can only be used within the quiz channel <#${getQuizId(interaction)}>.`, flags: MessageFlags.Ephemeral});
+  if (!isQuizChannel(interaction.channel)) {
+    await interaction.reply({ content: `This command can only be used within the quiz channel <#${quizId}>.`, flags: MessageFlags.Ephemeral});
     return false;
   }
 
@@ -34,17 +41,16 @@ export async function checkQuizChannel(interaction) {
 }
 
 export async function checkAdminChannel(interaction) {
-  if (!getAdminId(interaction)) {
+  const adminId = getAdminId(interaction);
+  const member = interaction.member;
+  if (!adminId) {
     await interaction.reply({ content: `The server has not been set up yet for StreakBot.`, flags: MessageFlags.Ephemeral});
     return false;
   }
 
-  const member = interaction.member;
-  const channel = await client.channels.fetch(getAdminId(interaction));
-
-  if (interaction.channel !== channel) {
-    if (channel.permissionsFor(member).has('SendMessages')) {
-      await interaction.reply({ content: `This command can only be used within the admin channel <#${getAdminId(interaction)}>.`, flags: MessageFlags.Ephemeral});
+  if (interaction.channel.id !== adminId) {
+    if ((await client.channels.fetch(adminId)).permissionsFor(member).has('SendMessages')) {
+      await interaction.reply({ content: `This command can only be used within the admin channel <#${adminId}>.`, flags: MessageFlags.Ephemeral});
     } else {
       await interaction.reply({ content: 'You do not have permission to use this command.', flags: MessageFlags.Ephemeral});
     }
@@ -57,10 +63,4 @@ export async function checkAdminChannel(interaction) {
 export function userList(users) {
   if (users.length === 0) return 'none';
   return users.map(user => `<@${user}>`).join(', ');
-}
-
-export function isQuizChannel(channel, quizId) {
-  if (channel.id === quizId) return true;
-  if (channel.isThread() && channel.parentId === quizId) return true;
-  return false;
 }

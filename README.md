@@ -17,27 +17,28 @@ Note that most commands are text-based for speed, but admin commands often use s
 ### **Players**
 | Command | Description |
 | ------- | ----------- |
-| `!help` | Show the help message |
-| `!play` | Start a new quiz with a random map |
-| `!play <map>` | Start a new quiz with the specified map |
-| `!g <country>` | Submit your guess for the current quiz |
-| `!maps` | Show all available maps |
-| `!invite <@user>` | Invite a user to your private thread *(only works in threads)* |
-| `!kick <@user>` | Kick a user from your private thread *(only works in threads)* |
-| `!map/!locs/!locations/!distribution <map>` | Show the distribution map for a specific map |
-| `!stop` | Stop the current quiz and show the final streak |
-| `/stats <type> <@user>` | Show the personal stats for a user (solo or multi) |
-| `/leaderboard <type> <map>` | Show the leaderboard for a map (solo or multi) |
+| `!help` | Show the help message ,
+| `!play` | Start a new quiz with a random map ,
+| `!play <map>` | Start a new quiz with the specified map ,
+| `!g <country>` | Submit your guess for the current quiz ,
+| `!maps` | Show all available maps ,
+| `!map <map>` | Show alias and distribution for a map ,
+| `!invite <@user>` | Invite a user to your private thread *(only works in threads)* ,
+| `!kick <@user>` | Kick a user from your private thread *(only works in threads)* ,
+| `/stats <type> <@user>` | Show the personal stats for a user (solo or multi) ,
+| `/leaderboard <type> <map>` | Show the leaderboard for a map (solo or multi) ,
+| `/userlb <type> <sort>` | Show the overall user leaderboard (solo or multi), sorted by total rank or streak.
 
 ### **Admins**
 | Command | Description |
 | ------- | ----------- |
-| `!help_admin` | Show the admin help message |
-| `!private_msg"` | Create an announcement message to create private quizzes |
-| `/create-channels` | Create channels under category StreakBot for the bot |
-| `/setup <create_quiz_channel> <quiz_channel> <admin_channel>` | Easily configure bot channels |
-| `/add-map <name> <aliases> [distribution]` | Add a map with aliases and a distribution map image (optional). The aliases should include the original map name. |
-| `/delete-map <name>` | Deletes a map from being able to be played. You may enter an alias. |
+| `!help` | Show the admin help message ,
+| `!private_msg` | Create an announcement message to create private quizzes ,
+| `!refresh_userlb` | Refreshes userlb, in case something goes wrong,
+| `/setup <create_quiz_channel> <quiz_channel> <admin_channel>` | Creates recommended channels for StreakBot,
+| `/create-channels` | Sets up StreakBot channels,
+| `/add-map <name> <aliases> [distribution]` | Adds a map to the officially supported maps,
+| `/delete-map <name>` | Deletes a map from the officially supported maps
 
 ---
 ![Preview 3](./assets/images/stats_screenshot.png)

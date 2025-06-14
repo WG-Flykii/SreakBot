@@ -207,9 +207,9 @@ async function handleAdminCommands(message) {
           { name: `${prefix}help`, value: 'Show the admin help message' },
           { name: `${prefix}private_msg`, value: "Create an announcement message to create private quizzes" },
           { name: `${prefix}refresh_userlb`, value: "Refreshes userlb, in case something goes wrong"},
-          { name: `/setup`, value: "Creates recommended channels for StreakBot"},
+          { name: `/setup <create_quiz_channel> <quiz_channel> <admin_channel>`, value: "Creates recommended channels for StreakBot"},
           { name: `/create-channels`, value: "Sets up StreakBot channels"},
-          { name: `/add-map`, value: "Adds a map to the officially supported maps"},
+          { name: `/add-map <name> <aliases> [distribution]`, value: "Adds a map to the officially supported maps"},
           { name: `/delete-map`, value: "Deletes a map from the officially supported maps"}
         )
         .setColor('#3498db');
@@ -226,5 +226,5 @@ async function handleAdminCommands(message) {
 export async function handleMessage(message) {
   if (message.author.bot) return;
   if (message.channel.id === getAdminId(message)) handleAdminCommands(message);
-  else if (isQuizChannel(message.channel, getQuizId(message))) handlePlayerCommands(message);
+  else if (isQuizChannel(message.channel)) handlePlayerCommands(message);
 };

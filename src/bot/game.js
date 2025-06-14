@@ -37,7 +37,7 @@ export let locs = {};
 const locRetries = 3;
 
 export async function newLoc(channel, quizId, mapName = null, reload = false) {
-  if (!isQuizChannel(channel, quizId)) {
+  if (!isQuizChannel(channel)) {
     await channel.send("Quizzes can only be played in the designated channel or its threads.");
     return;
   }
