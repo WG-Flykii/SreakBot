@@ -1,4 +1,4 @@
-import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 
 import { pbStreaks, lbStreaks, userLb, compareStreaks, USERLB_PATH } from './game.js';
 import { client } from '../streakbot.js';
@@ -196,7 +196,6 @@ export async function showUserLb(interaction, type, sort) {
       return b.totalStreak - a.totalStreak;
     });
   }
-
 
   const prefix = sort === 'rank' ? `You must play all maps in ${type} mode to be on this leaderboard.\n\n` : '';
 

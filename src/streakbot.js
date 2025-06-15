@@ -7,7 +7,7 @@ dotenv.config();
 
 const BOT_TOKEN = process.env.BOT_TOKEN; // Token for the discord bot
 
-import { botStart } from './events/start.js';
+import { botStart } from './events/ready.js';
 import { handleMessage } from './events/message.js';
 import { handleInteraction } from './events/interaction.js';
 
