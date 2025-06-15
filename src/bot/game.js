@@ -15,21 +15,23 @@ import { formatTime } from '../utils/general_utils.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const SOLO_PB_STREAK_PATH = path.join(__dirname, '../data/user/solo_pb_streak.json');
-const SOLO_LB_STREAK_PATH = path.join(__dirname, '../data/user/solo_lb_streak.json');
-export const SOLO_USERLB_PATH = path.join(__dirname, '../data/user/solo_userlb.json');
-const MULTI_PB_STREAK_PATH = path.join(__dirname, '../data/user/multi_pb_streak.json');
-const MULTI_LB_STREAK_PATH = path.join(__dirname, '../data/user/multi_lb_streak.json');
-export const MULTI_USERLB_PATH = path.join(__dirname, '../data/user/multi_userlb.json');
+const PB_STREAK_PATH = path.join(__dirname, '../data/user/pb_streak.json');
+const LB_STREAK_PATH = path.join(__dirname, '../data/user/lb_streak.json');
+export const USERLB_PATH = path.join(__dirname, '../data/user/userlb.json');
 const SERVER_CONFIG_PATH = path.join(__dirname, '../data/user/server_config.json');
 
-export let pbStreaksSolo = loadJsonFile(SOLO_PB_STREAK_PATH, {});
-export let lbStreaksSolo = loadJsonFile(SOLO_LB_STREAK_PATH, {});
-export let pbStreaksMulti = loadJsonFile(MULTI_PB_STREAK_PATH, {});
-export let lbStreaksMulti = loadJsonFile(MULTI_LB_STREAK_PATH, {});
-export let userLbSolo = loadJsonFile(SOLO_USERLB_PATH, {});
-export let userLbMulti = loadJsonFile(MULTI_USERLB_PATH, {});
+export let pbStreaks = loadJsonFile(PB_STREAK_PATH, {});
+export let lbStreaks = loadJsonFile(LB_STREAK_PATH, {});
+export let userLb = loadJsonFile(USERLB_PATH, {});
 export let serverConfig = loadJsonFile(SERVER_CONFIG_PATH, {});
+
+if (!pbStreaks['solo']) pbStreaks['solo'] = {};
+if (!pbStreaks['multi']) pbStreaks['multi'] = {};
+if (!lbStreaks['solo']) lbStreaks['solo'] = {};
+if (!lbStreaks['multi']) lbStreaks['multi'] = {};
+if (!userLb['solo']) userLb['solo'] = {};
+if (!userLb['multi']) userLb['multi'] = {};
+
 
 export let quizzes = {};
 export let locs = {};
@@ -198,25 +200,25 @@ export async function handleGuess(message, guess) {
   const quizTime = now - quiz.loadTime;
 
   if (quizzes[channelId].saveStreaks) {
-    if (!pbStreaksSolo[userId]) {
-      pbStreaksSolo[userId] = {};
+    if (!pbStreaks['solo'][userId]) {
+      pbStreaks['solo'][userId] = {};
     }
-    if (!pbStreaksMulti[userId]) {
-      pbStreaksMulti[userId] = {};
+    if (!pbStreaks['multi'][userId]) {
+      pbStreaks['multi'][userId] = {};
     }
-    if (!lbStreaksSolo[mapName]) {
-      lbStreaksSolo[mapName] = {};
+    if (!lbStreaks['solo'][mapName]) {
+      lbStreaks['solo'][mapName] = {};
     }
     if (!lbStreaksMulti[mapName]) {
       lbStreaksMulti[mapName] = {};
     }
-    if (!pbStreaksSolo[userId][mapName]) {
-      pbStreaksSolo[userId][mapName] = {};
+    if (!pbStreaks['solo'][userId][mapName]) {
+      pbStreaks['solo'][userId][mapName] = {};
     }
-    if (!pbStreaksSolo[userId][mapName].locsPlayed) {
-      pbStreaksSolo[userId][mapName].locsPlayed = 0;
-      pbStreaksSolo[userId][mapName].totalTime = 0;
-      pbStreaksSolo[userId][mapName].totalCorrect = 0;
+    if (!pbStreaks['solo'][userId][mapName].locsPlayed) {
+      pbStreaks['solo'][userId][mapName].locsPlayed = 0;
+      pbStreaks['solo'][userId][mapName].totalTime = 0;
+      pbStreaks['solo'][userId][mapName].totalCorrect = 0;
     }
   }
 
@@ -251,21 +253,21 @@ export async function handleGuess(message, guess) {
       }
 
       // Must update LBs first, as it uses old dates from old PBs as keys for LB entries
-      const lbKeySolo = pbStreaksSolo[userId][mapName]?.date || -1;
-      let lbKeysMulti = quiz.participants.map(p => pbStreaksMulti[p][mapName]?.date || -1);
+      const lbKeySolo = pbStreaks['solo'][userId][mapName]?.date || -1;
+      let lbKeysMulti = quiz.participants.map(p => pbStreaks['multi'][p][mapName]?.date || -1);
 
-      const oldLbEntrySolo = lbStreaksSolo[mapName][lbKeySolo];
+      const oldLbEntrySolo = lbStreaks['solo'][mapName][lbKeySolo];
       if (lbKeySolo === -1) {
         console.log(soloEntry);
-        lbStreaksSolo[mapName][now] = soloEntry;
+        lbStreaks['solo'][mapName][now] = soloEntry;
       } else if (compareStreaks(quiz.solo, oldLbEntrySolo) < 0) {
-        delete lbStreaksSolo[mapName][lbKeySolo];
-        lbStreaksSolo[mapName][now] = soloEntry;
+        delete lbStreaks['solo'][mapName][lbKeySolo];
+        lbStreaks['solo'][mapName][now] = soloEntry;
       }
 
       // TODO: effficient insertion with binary search
-      lbStreaksSolo[mapName] = Object.fromEntries(
-        Object.entries(lbStreaksSolo[mapName])
+      lbStreaks['solo'][mapName] = Object.fromEntries(
+        Object.entries(lbStreaks['solo'][mapName])
           .sort(([,a], [,b]) => compareStreaks(a, b))
       );
 
@@ -299,7 +301,7 @@ export async function handleGuess(message, guess) {
             // Check if it's somebody's PB, if so don't delete
             for (const p of pbEntry.participants) {
               if (quiz.participants.includes(p)) continue;
-              if (pbStreaksMulti[p][mapName].date === key) {
+              if (pbStreaks['multi'][p][mapName].date === key) {
                 canDelete = false; break;
               }
             }
@@ -318,15 +320,14 @@ export async function handleGuess(message, guess) {
           Object.entries(lbStreaksMulti[mapName])
             .sort(([,a], [,b]) => compareStreaks(a, b))
         );
-        saveJsonFile(MULTI_LB_STREAK_PATH, lbStreaksMulti);
       }
 
       if (
-        !pbStreaksSolo[userId][mapName]
-        || compareStreaks(quiz.solo, pbStreaksSolo[userId][mapName]) < 0
+        !pbStreaks['solo'][userId][mapName]
+        || compareStreaks(quiz.solo, pbStreaks['solo'][userId][mapName]) < 0
       ) {
-        pbStreaksSolo[userId][mapName] = {
-          ...pbStreaksSolo[userId][mapName],
+        pbStreaks['solo'][userId][mapName] = {
+          ...pbStreaks['solo'][userId][mapName],
           ...soloEntry
         };
       }
@@ -334,25 +335,23 @@ export async function handleGuess(message, guess) {
       if (quiz.participants.length > 1) {
         for (const p of quiz.participants) {
           if (
-            !pbStreaksMulti[p][mapName]
-            || compareStreaks(quiz.multi, pbStreaksMulti[p][mapName]) < 0
+            !pbStreaks['multi'][p][mapName]
+            || compareStreaks(quiz.multi, pbStreaks['multi'][p][mapName]) < 0
           ) {
-            pbStreaksMulti[p][mapName] = multiEntry;
+            pbStreaks['multi'][p][mapName] = multiEntry;
           }
         }
-        saveJsonFile(MULTI_PB_STREAK_PATH, pbStreaksMulti);
       }
 
-      pbStreaksSolo[userId][mapName].locsPlayed++;
-      pbStreaksSolo[userId][mapName].totalTime += quizTime;
-      pbStreaksSolo[userId][mapName].totalCorrect++;
+      pbStreaks['solo'][userId][mapName].locsPlayed++;
+      pbStreaks['solo'][userId][mapName].totalTime += quizTime;
+      pbStreaks['solo'][userId][mapName].totalCorrect++;
 
       saveOverallStats(userId);
 
-      saveJsonFile(SOLO_PB_STREAK_PATH, pbStreaksSolo);
-      saveJsonFile(SOLO_LB_STREAK_PATH, lbStreaksSolo);
-      saveJsonFile(SOLO_USERLB_PATH, userLbSolo);
-      saveJsonFile(MULTI_USERLB_PATH, userLbMulti);
+      saveJsonFile(PB_STREAK_PATH, pbStreaks);
+      saveJsonFile(LB_STREAK_PATH, lbStreaks);
+      saveJsonFile(USERLB_PATH, userLb);
     }
 
     await message.reply({
@@ -383,14 +382,14 @@ export async function handleGuess(message, guess) {
     const participantsList = userList(quiz.participants);
 
     if (quizzes[channelId].saveStreaks) {
-      pbStreaksSolo[userId][mapName].locsPlayed++;
-      pbStreaksSolo[userId][mapName].totalTime += quizTime;
+      pbStreaks['solo'][userId][mapName].locsPlayed++;
+      pbStreaks['solo'][userId][mapName].totalTime += quizTime;
     }
 
     saveOverallStats(userId);
 
-    saveJsonFile(SOLO_PB_STREAK_PATH, pbStreaksSolo);
-    saveJsonFile(SOLO_USERLB_PATH, userLbSolo);
+    saveJsonFile(PB_STREAK_PATH, pbStreaks);
+    saveJsonFile(USERLB_PATH, userLb);
 
     await message.reply({
       embeds: [

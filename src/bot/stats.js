@@ -1,12 +1,6 @@
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 
-import {
-  pbStreaksSolo, pbStreaksMulti,
-  lbStreaksSolo, lbStreaksMulti,
-  userLbSolo, userLbMulti,
-  compareStreaks,
-  SOLO_USERLB_PATH, MULTI_USERLB_PATH
-} from './game.js';
+import { pbStreaks, lbStreaks, userLb, compareStreaks, USERLB_PATH } from './game.js';
 import { client } from '../streakbot.js';
 import { mapNames } from '../data/game/maps_data.js';
 import { saveJsonFile } from '../utils/json_utils.js';
@@ -16,15 +10,13 @@ import { userList, availableMapsEmbed } from '../utils/bot_utils.js';
 
 export async function saveOverallStats(userId) {
   for (const type of ['solo', 'multi']) {
-    const pbStreaks = type === 'solo' ? pbStreaksSolo : pbStreaksMulti;
-    const lbStreaks = type === 'solo' ? lbStreaksSolo : lbStreaksMulti;
     const streaks = pbStreaks[userId];
     if (!streaks) return;
     let totalRank = 0, totalStreak = 0;
     let locsPlayed = 0, totalTime = 0, totalCorrect = 0;
     for (const [mapName, stats] of Object.entries(streaks)) {
       totalRank += 1 + findObjectIndex(
-        lbStreaks[mapName],
+        lbStreaks[type][mapName],
         String(stats.date)
       );
       totalStreak += stats.streak;
@@ -39,24 +31,19 @@ export async function saveOverallStats(userId) {
       mapsPlayed: Object.keys(streaks).length
     };
     if (type === 'solo') {
-      if (!userLbSolo[userId]) userLbSolo[userId] = {};
       entry.locsPlayed = locsPlayed;
       entry.totalTime = totalTime;
       entry.totalCorrect = totalCorrect;
-      userLbSolo[userId] = entry;
-    } else {
-      if (!userLbMulti[userId]) userLbMulti[userId] = {};
-      userLbMulti[userId] = entry;
     }
+    userLb[type][userId] = entry;
   }
 }
 
 export async function refreshUserLb() {
-  for (const userId of Object.keys(pbStreaksSolo)) {
+  for (const userId of Object.keys(pbStreaks['solo'])) {
     await saveOverallStats(userId);
   }
-  saveJsonFile(SOLO_USERLB_PATH, userLbSolo);
-  saveJsonFile(MULTI_USERLB_PATH, userLbMulti);
+  saveJsonFile(USERLB_PATH, userLb);
 }
 
 export async function showLeaderboard(interaction, inputName, type) {
@@ -70,14 +57,12 @@ export async function showLeaderboard(interaction, inputName, type) {
   }
 
   let mapLb;
-  if (type === 'solo'){
-    mapLb = Object.values(lbStreaksSolo[mapName]) || [];
-  } else if (type === 'multi') {
-    mapLb = Object.values(lbStreaksMulti[mapName]) || [];
-  } else if (type === 'combined') {
-    const mapLbSolo = Object.values(lbStreaksSolo[mapName]) || [];
-    const mapLbMulti = Object.values(lbStreaksMulti[mapName]) || [];
+  if (type === 'combined') {
+    const mapLbSolo = Object.values(lbStreaks['solo'][mapName]) || [];
+    const mapLbMulti = Object.values(lbStreaks['multi'][mapName]) || [];
     mapLb = mapLbSolo.concat(mapLbMulti);
+  } else {
+    mapLb = Object.values(lbStreaks[type][mapName]);
   }
 
   if (mapLb.length === 0) {
@@ -162,25 +147,17 @@ export async function showLeaderboard(interaction, inputName, type) {
 }
 
 export async function showPersonalStats(interaction, user, type) {
-  const maps = 10;
-
-  let userStats, lbStreaks;
-  if (type === 'multi') {
-    userStats = pbStreaksMulti[user.id] || {};
-    lbStreaks = lbStreaksMulti || {};
-  } else {
-    userStats = pbStreaksSolo[user.id] || {};
-    lbStreaks = lbStreaksSolo || {};
-  }
+  const maps = 10;yh
+  let userStats = pbStreaks[type][user.id] || {};
 
   if (type === 'overall') {
     userStats = Object.entries(userStats).filter(stats => stats[1].locsPlayed !== undefined);
   } else {
     for (const [mapName, stats] of Object.entries(userStats)) {
       let position = -1;
-      if (lbStreaks[mapName]) {
+      if (lbStreaks[type][mapName]) {
         const userPos = findObjectIndex(
-          lbStreaks[mapName],
+          lbStreaks[type][mapName],
           String(stats.date)
         );
         if (userPos >= 0) {
@@ -217,7 +194,7 @@ export async function showPersonalStats(interaction, user, type) {
   
   if (type === 'overall') {
     let overall = "**Overall Stats**\n";
-    const userLbStats = userLbSolo[user.id]
+    const userLbStats = userLb['solo'][user.id]
     const accuracy = (userLbStats.locsPlayed === 0) ? 0 : (userLbStats.totalCorrect / userLbStats.locsPlayed * 100).toFixed(2);
     overall += `Locations Played: ${userLbStats.locsPlayed} | Accuracy: ${accuracy}% | Average Time: ${formatTime(userLbStats.totalTime / userLbStats.locsPlayed)}\n`;
     overall += `Rank Sum: ${userLbStats.totalRank} | Streak Sum: ${userLbStats.totalStreak} | Maps Played: ${userLbStats.mapsPlayed}\n\n`;
@@ -319,7 +296,7 @@ export async function showUserLb(interaction, type, sort) {
         .setStyle(ButtonStyle.Primary)
     );
   
-  let userLb = Object.entries(type === 'solo' ? userLbSolo : userLbMulti);
+  let userLb = Object.entries(userLb[type]);
   if (sort === 'streak') {
     userLb.sort(([,a], [,b]) => {
       if (a.totalStreak !== b.totalStreak) {

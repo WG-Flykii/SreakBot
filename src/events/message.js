@@ -85,16 +85,11 @@ async function handlePlayerCommands(message) {
       
       if (currentLoc && currentLoc.location) {
         stopEmbed.addFields(
+          { name: 'Country', value: currentLoc.country || 'Unknown country'},
+          { name: 'Subdivision', value: currentLoc.subdivision || 'Unknown subdivision' },
           {
             name: "Exact Location",
             value: `[View on Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${currentLoc.location.lat},${currentLoc.location.lng}&heading=0&pitch=0)`
-          }
-        );
-      } else {
-        stopEmbed.addFields(
-          {
-            name: "Exact Location",
-            value: "Location has not been loaded."
           }
         );
       }
