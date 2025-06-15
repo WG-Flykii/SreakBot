@@ -65,6 +65,13 @@ export function userList(users) {
   return users.map(user => `<@${user}>`).join(', ');
 }
 
+export function compareStreaks(a, b) {
+  if (a.streak !== b.streak) {
+    return b.streak - a.streak;
+  }
+  return a.averageTime - b.averageTime;
+}
+
 export async function navEmbed(
   base, items, itemsPerPage, interaction,
   prefix = '', suffix = '', timeout = 300000

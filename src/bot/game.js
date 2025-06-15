@@ -6,7 +6,7 @@ import { COUNTRIES } from '../data/game/countries_data.js';
 import { mapToSlug, mapNames } from '../data/game/maps_data.js';
 import { resolveMapName, normalizeCountry, checkCountryGuess } from '../utils/game_utils.js';
 import { saveOverallStats } from './stats.js';
-import { userList, getQuizId, isQuizChannel } from '../utils/bot_utils.js';
+import { userList, getQuizId, isQuizChannel, compareStreaks } from '../utils/bot_utils.js';
 import { loadJsonFile, saveJsonFile } from '../utils/json_utils.js';
 import { fetchMapLocations, mapCache } from '../web/locations.js'
 import { loadLoc, preloadMap } from '../web/loader.js';
@@ -44,7 +44,7 @@ export async function newLoc(channel, quizId, mapName = null, reload = false) {
     return;
   }
 
-  if (reload && !(quizzes[channel.id] && quizzes[channel.id].processed)) return;
+  if (reload && !(quizzes[channel.id] && quizzes[channel.id].loadTime)) return;
 
   let loadingMessage;
   let saveStreaks = true;
@@ -64,10 +64,10 @@ export async function newLoc(channel, quizId, mapName = null, reload = false) {
       lastParticipant: channelData.lastParticipant || null,
       participants: channelData.participants || [],
       retries: channelData.retries || 0,
-      processed: false,
       mapName: channelData.mapName,
       mapLocations: channelData.mapLocations,
       saveStreaks: channelData.saveStreaks,
+      lastMessage: null,
     };
 
     let selectedMapName = null;
@@ -127,7 +127,6 @@ export async function newLoc(channel, quizId, mapName = null, reload = false) {
     }
 
     const currentLoc = locs[channel.id][mapName][0];
-    quizzes[channel.id].processed = true;
 
     const embed = new EmbedBuilder()
       .setTitle(`🌍 Country streak – ${quizzes[channel.id].mapName}`)
@@ -137,8 +136,10 @@ export async function newLoc(channel, quizId, mapName = null, reload = false) {
       .setFooter({ text: `Map: ${quizzes[channel.id].mapName} | Current Streak: ${quizzes[channel.id].multi.streak}` });
 
     if (!quizzes[channel.id]) return;
-    await channel.send({ embeds: [embed], files: [currentLoc.image] });
+    quizzes[channel.id].lastMessage = { embeds: [embed], files: [currentLoc.image] }
+    await channel.send(quizzes[channel.id].lastMessage);
     await loadingMessage.delete();
+
     if (!quizzes[channel.id]) return;
     quizzes[channel.id].loadTime = Date.now();
 
@@ -161,23 +162,18 @@ export async function newLoc(channel, quizId, mapName = null, reload = false) {
   }
 }
 
-export function compareStreaks(a, b) {
-  if (a.streak !== b.streak) {
-    return b.streak - a.streak;
-  }
-  return a.averageTime - b.averageTime;
-}
-
 // If a guess is right, give info and call newLoc
 // If a guess is wrong, end the game and give info
 export async function handleGuess(message, guess) {
   if (!guess) return;
-  if (!quizzes[message.channel.id]
-    || !quizzes[message.channel.id].processed) return;
+  if (
+    !quizzes[message.channel.id]
+    || !quizzes[message.channel.id].loadTime
+  ) return;
 
   const channelId = message.channel.id;
   const currentLoc = locs[channelId][quizzes[channelId].mapName][0];
-  quizzes[channelId].processed = false;
+  quizzes[channelId].loadTime = null;
   const quiz = quizzes[channelId];
   if (!quizzes[channelId]) return;
 
