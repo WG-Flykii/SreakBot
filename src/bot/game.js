@@ -196,18 +196,11 @@ export async function handleGuess(message, guess) {
   const quizTime = now - quiz.loadTime;
 
   if (quizzes[channelId].saveStreaks) {
-    if (!pbStreaks['solo'][userId]) {
-      pbStreaks['solo'][userId] = {};
-    }
-    if (!pbStreaks['multi'][userId]) {
-      pbStreaks['multi'][userId] = {};
-    }
-    if (!lbStreaks['solo'][mapName]) {
-      lbStreaks['solo'][mapName] = {};
-    }
-    if (!lbStreaksMulti[mapName]) {
-      lbStreaksMulti[mapName] = {};
-    }
+    if (!pbStreaks['solo'][userId]) pbStreaks['solo'][userId] = {};
+    if (!pbStreaks['multi'][userId]) pbStreaks['multi'][userId] = {};
+    if (!lbStreaks['solo'][mapName]) lbStreaks['solo'][mapName] = {};
+    if (!lbStreaks['multi'][mapName]) lbStreaks['multi'][mapName] = {};
+    
     if (!pbStreaks['solo'][userId][mapName]) {
       pbStreaks['solo'][userId][mapName] = {};
     }
@@ -280,7 +273,7 @@ export async function handleGuess(message, guess) {
       if (quiz.participants.length > 1) {
         let save;
         if (lbKeysMulti.includes(-1)) {
-          lbStreaksMulti[mapName][now] = multiEntry;
+          lbStreaks['multi'][mapName][now] = multiEntry;
           lbKeysMulti = lbKeysMulti.filter(k => k !== -1);
           save = true;
         } else save = false;
@@ -290,7 +283,7 @@ export async function handleGuess(message, guess) {
           if (deletions.includes(key)) continue;
           // Check if it's better than the current PB
           let canDelete = true;
-          const pbEntry = lbStreaksMulti[mapName][key]; // Current place on LB
+          const pbEntry = lbStreaks['multi'][mapName][key]; // Current place on LB
           if (compareStreaks(quiz.multi, pbEntry) < 0) {
             save = true;
             // Only try to delete if it's better than old PB
@@ -307,13 +300,13 @@ export async function handleGuess(message, guess) {
 
         if (save) {
           for (const key of deletions) {
-            delete lbStreaksMulti[mapName][key];
+            delete lbStreaks['multi'][mapName][key];
           }
-          lbStreaksMulti[mapName][now] = multiEntry;
+          lbStreaks['multi'][mapName][now] = multiEntry;
         }
 
-        lbStreaksMulti[mapName] = Object.fromEntries(
-          Object.entries(lbStreaksMulti[mapName])
+        lbStreaks['multi'][mapName] = Object.fromEntries(
+          Object.entries(lbStreaks['multi'][mapName])
             .sort(([,a], [,b]) => compareStreaks(a, b))
         );
       }
