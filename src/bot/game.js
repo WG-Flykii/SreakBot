@@ -2,15 +2,18 @@ import { EmbedBuilder } from 'discord.js';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
+import { saveOverallStats } from './stats.js';
+
 import { COUNTRIES } from '../data/game/countries_data.js';
 import { mapToSlug, mapNames } from '../data/game/maps_data.js';
+
 import { resolveMapName, normalizeCountry, checkCountryGuess } from '../utils/game_utils.js';
-import { saveOverallStats } from './stats.js';
 import { userList, getQuizId, isQuizChannel, compareStreaks } from '../utils/bot_utils.js';
 import { loadJsonFile, saveJsonFile } from '../utils/json_utils.js';
+import { formatTime } from '../utils/general_utils.js';
+
 import { fetchMapLocations, mapCache } from '../web/locations.js'
 import { loadLoc, preloadMap } from '../web/loader.js';
-import { formatTime } from '../utils/general_utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -200,7 +203,7 @@ export async function handleGuess(message, guess) {
     if (!pbStreaks['multi'][userId]) pbStreaks['multi'][userId] = {};
     if (!lbStreaks['solo'][mapName]) lbStreaks['solo'][mapName] = {};
     if (!lbStreaks['multi'][mapName]) lbStreaks['multi'][mapName] = {};
-    
+
     if (!pbStreaks['solo'][userId][mapName]) {
       pbStreaks['solo'][userId][mapName] = {};
     }

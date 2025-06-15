@@ -7,9 +7,10 @@ import { dirname } from 'path';
 import { mapData, mapAliases, refreshMaps } from '../data/game/maps_data.js';
 
 import { createPrivateThread } from '../bot/private_quiz.js'
-import { saveJsonFile } from '../utils/json_utils.js';
 import { serverConfig } from '../bot/game.js';
 import { showLeaderboard, showPersonalStats, showUserLb } from '../bot/stats.js';
+
+import { saveJsonFile } from '../utils/json_utils.js';
 import { checkQuizChannel, checkAdminChannel } from '../utils/bot_utils.js';
 
 const __filename = fileURLToPath(import.meta.url);

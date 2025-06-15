@@ -9,6 +9,7 @@ import { mapAliases, mapData } from '../data/game/maps_data.js';
 import { quizzes, locs, newLoc, handleGuess } from '../bot/game.js';
 import { sendPrivateMessageOffer } from '../bot/private_quiz.js';
 import { refreshUserLb } from '../bot/stats.js';
+
 import { getCreateQuizId, getQuizId, getAdminId, getPrefix, isQuizChannel, availableMapsEmbed } from '../utils/bot_utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -175,6 +176,10 @@ async function handlePlayerCommands(message) {
     
     case 'reload':
       await newLoc(message.channel, quizId, null, true);
+      break;
+    
+    case 'image':
+      await message.reply(quizzes[message.channel.id].lastMessage);
       break;
   }
 }

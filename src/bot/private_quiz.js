@@ -1,7 +1,7 @@
 import { ChannelType, MessageFlags, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 
-import { client } from '../streakbot.js';
 import { getQuizId, getAdminId } from '../utils/bot_utils.js';
+import { client } from '../streakbot.js';
 
 export async function createPrivateThread(interaction, userId) {
   try {

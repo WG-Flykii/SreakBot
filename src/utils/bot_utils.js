@@ -1,8 +1,8 @@
 import { MessageFlags, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 
-import { client } from '../streakbot.js';
 import { mapNames } from '../data/game/maps_data.js';
 import { serverConfig } from '../bot/game.js';
+import { client } from '../streakbot.js';
 
 export const getPrefix = (action) => serverConfig[action.guild.id]?.prefix; // Prefix of bot (! by default)
 export const getCreateQuizId = (action) => serverConfig[action.guild.id]?.createQuizId; // Channel to send sendPrivateMessageOffer

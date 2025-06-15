@@ -1,5 +1,5 @@
+import { serverConfig } from '../bot/game.js';
 import { client } from '../streakbot.js';
-import { serverConfig } from '../bot/game.js'
 
 export function scheduleThreadInactivityCheck(threadId) {
   setTimeout(async () => {

@@ -1,12 +1,15 @@
 import { EmbedBuilder } from 'discord.js';
 
 import { pbStreaks, lbStreaks, userLb, USERLB_PATH } from './game.js';
-import { client } from '../streakbot.js';
+
 import { mapNames } from '../data/game/maps_data.js';
+
 import { saveJsonFile } from '../utils/json_utils.js';
 import { resolveMapName } from '../utils/game_utils.js';
 import { getDay, capitalizeFirst, formatTime, findObjectIndex } from '../utils/general_utils.js';
 import { userList, availableMapsEmbed, navEmbed, compareStreaks } from '../utils/bot_utils.js';
+
+import { client } from '../streakbot.js';
 
 export async function saveOverallStats(userId) {
   for (const type of ['solo', 'multi']) {
