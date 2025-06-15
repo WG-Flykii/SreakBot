@@ -6,7 +6,7 @@ import { mapNames } from '../data/game/maps_data.js';
 import { saveJsonFile } from '../utils/json_utils.js';
 import { resolveMapName } from '../utils/game_utils.js';
 import { getDay, capitalizeFirst, formatTime, findObjectIndex } from '../utils/general_utils.js';
-import { userList, availableMapsEmbed } from '../utils/bot_utils.js';
+import { userList, availableMapsEmbed, navEmbed } from '../utils/bot_utils.js';
 
 export async function saveOverallStats(userId) {
   for (const type of ['solo', 'multi']) {
@@ -47,7 +47,6 @@ export async function refreshUserLb() {
 }
 
 export async function showLeaderboard(interaction, inputName, type) {
-  // TODO: Greatly shorten code by having a navigationi template
   const places = 10;
   const mapName = resolveMapName(inputName);
 
@@ -74,81 +73,59 @@ export async function showLeaderboard(interaction, inputName, type) {
     .setTitle(`🏆 ${mapName} - ${capitalizeFirst(type)} leaderboard`)
     .setColor('#f1c40f')
   
-  let page = 1;
-  let leaderboard;
-  const navigation = new ActionRowBuilder()
-    .addComponents(
-      new ButtonBuilder()
-        .setCustomId('lb_left')
-        .setLabel('<')
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId('lb_right')
-        .setLabel('>')
-        .setStyle(ButtonStyle.Primary)
-    );
-    
-  async function updateLb() {
-    navigation.components[0].setDisabled(false);
-    navigation.components[1].setDisabled(false);
-    if (page === 1) {
-      navigation.components[0].setDisabled(true);
-    }
-    if (places * page >= mapLb.length) {
-      navigation.components[1].setDisabled(true);
-    }
-
-    let description = "";
-    mapLb.slice(places * (page - 1), places * page).forEach((entry, index) => {
-      const realIndex = places * (page - 1) + index;
-      const medal = realIndex === 0 ? '🥇' : realIndex === 1 ? '🥈' : realIndex === 2 ? '🥉' : `${realIndex + 1}.`;
-      const time = formatTime(entry.averageTime);
-      const streakData = `Streak: ${entry.streak} | Average Time: ${time} | Date: ${getDay(entry.date)}`;
-      if (type === 'solo') {
-        description += `${medal} **<@${entry.participants[0]}>** - ${streakData}\n`;
-      } else {
-        description += `${medal} ${userList(entry.participants)}\n`;
-        description += streakData + '\n\n';
-      }
-    });
-    embed.setDescription(description);
-    embed.setFooter({ text: `Page ${page} of ${Math.ceil(mapLb.length / places)}` });
-
-    if (!leaderboard) {
-      leaderboard = await interaction.reply({ embeds: [embed], components: [navigation] });
+  items = mapLb.map((entry, index) => {
+    let item = "";
+    const realIndex = places * (page - 1) + index;
+    const medal = realIndex === 0 ? '🥇' : realIndex === 1 ? '🥈' : realIndex === 2 ? '🥉' : `${realIndex + 1}.`;
+    const time = formatTime(entry.averageTime);
+    const streakData = `Streak: ${entry.streak} | Average Time: ${time} | Date: ${getDay(entry.date)}`;
+    if (type === 'solo') {
+      item += `${medal} **<@${entry.participants[0]}>** - ${streakData}\n`;
     } else {
-      await interaction.editReply({ embeds: [embed], components: [navigation] });
+      item += `${medal} ${userList(entry.participants)}\n`;
+      item += streakData + '\n\n';
     }
-  }
-
-  await updateLb();
-
-  const collector = leaderboard.createMessageComponentCollector({
-    filter: i => i.user.id === interaction.user.id,
-    time: 300000
-  });
-  
-  collector.on('collect', async (i) => {
-    if (i.customId === 'lb_left') page -= 1;
-    else page += 1;
-    await i.deferUpdate();
-    await updateLb();
+    return item;
   });
 
-  collector.on('end', async () => {
-    navigation.components[0].setDisabled(true);
-    navigation.components[1].setDisabled(true);
-    await interaction.editReply({ components: [navigation] });
-  });
+  await navEmbed([embed], items, 10, interaction);
 }
 
 export async function showPersonalStats(interaction, user, type) {
-  const maps = 10;yh
+  let items;
   let userStats = pbStreaks[type][user.id] || {};
+  let embeds = [
+    new EmbedBuilder()
+      .setTitle(`📊 ${capitalizeFirst(type)} stats for ${(await client.users.fetch(user.id)).username}`)
+      .setColor('#9b59b6')
+  ];
 
   if (type === 'overall') {
     userStats = Object.entries(userStats).filter(stats => stats[1].locsPlayed !== undefined);
+    if (userStats.length === 0) {
+      return interaction.reply(`${user.username} doesn't have any recorded guesses yet.`);
+    }
+
+    let overall = "**Overall Stats**\n";
+    const userLbStats = userLb['solo'][user.id]
+    const accuracy = (userLbStats.locsPlayed === 0) ? 0 : (userLbStats.totalCorrect / userLbStats.locsPlayed * 100).toFixed(2);
+    overall += `Locations Played: ${userLbStats.locsPlayed} | Accuracy: ${accuracy}% | Average Time: ${formatTime(userLbStats.totalTime / userLbStats.locsPlayed)}\n`;
+    overall += `Rank Sum: ${userLbStats.totalRank} | Streak Sum: ${userLbStats.totalStreak} | Maps Played: ${userLbStats.mapsPlayed}\n\n`;
+    embeds[0].setDescription(overall);
+    embed.push(new EmbedBuilder().setColor('#9b59b6'));
+
+    items = userStats.map(([mapName, stats]) => {
+      let item = "";
+      item += `**${mapName}**\n`;
+      const accuracy = (stats.totalCorrect / stats.locsPlayed * 100).toFixed(2);
+      item += `Locations Played: ${stats.locsPlayed} | Accuracy: ${accuracy}% | Average Time: ${formatTime(stats.totalTime / stats.locsPlayed)}\n\n`;
+      return item;
+    });
   } else {
+    if (userStats.length === 0) {
+      return interaction.reply(`${user.username} doesn't have a ${type} streak yet.`);
+    }
+
     for (const [mapName, stats] of Object.entries(userStats)) {
       let position = -1;
       if (lbStreaks[type][mapName]) {
@@ -174,126 +151,32 @@ export async function showPersonalStats(interaction, user, type) {
       }
       return a.averageTime - b.averageTime;
     });
-  }
 
-  if (userStats.length === 0) {
-    if (type === 'overall') {
-      return interaction.reply(`${user.username} doesn't have any recorded guesses yet.`);
-    }
-    return interaction.reply(`${user.username} doesn't have a ${type} streak yet.`);
-  }
-
-  let embeds = [];
-  let embed = new EmbedBuilder()
-    .setTitle(`📊 ${capitalizeFirst(type)} stats for ${(await client.users.fetch(user.id)).username}`)
-    .setColor('#9b59b6');
-  
-  if (type === 'overall') {
-    let overall = "**Overall Stats**\n";
-    const userLbStats = userLb['solo'][user.id]
-    const accuracy = (userLbStats.locsPlayed === 0) ? 0 : (userLbStats.totalCorrect / userLbStats.locsPlayed * 100).toFixed(2);
-    overall += `Locations Played: ${userLbStats.locsPlayed} | Accuracy: ${accuracy}% | Average Time: ${formatTime(userLbStats.totalTime / userLbStats.locsPlayed)}\n`;
-    overall += `Rank Sum: ${userLbStats.totalRank} | Streak Sum: ${userLbStats.totalStreak} | Maps Played: ${userLbStats.mapsPlayed}\n\n`;
-    embed.setDescription(overall);
-    embeds.push(embed);
-    embed = new EmbedBuilder().setColor('#9b59b6');
-  }
-  
-  let page = 1;
-  let stats;
-  const navigation = new ActionRowBuilder()
-    .addComponents(
-      new ButtonBuilder()
-        .setCustomId('pb_left')
-        .setLabel('<')
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId('pb_right')
-        .setLabel('>')
-        .setStyle(ButtonStyle.Primary)
-    );
-
-  async function updatePb() {
-    navigation.components[0].setDisabled(false);
-    navigation.components[1].setDisabled(false);
-    if (page === 1) {
-      navigation.components[0].setDisabled(true);
-    }
-    if (maps * page >= Object.keys(userStats).length) {
-      navigation.components[1].setDisabled(true);
-    }
-
-    let description = "";
-    for (const [mapName, stats] of userStats.slice(maps * (page - 1), maps * page)) {
+    items = userStats.map(([mapName, stats]) => {
+      let item = "";
       const formattedTime = formatTime(stats.averageTime);
       const positionString = stats.position === -1 ? 'not ranked' : `#${stats.position}`;
-      description += `**${mapName}**\n`;
-      if (type === 'multi') {
-        description += `Participants: ${userList(stats.participants)}\n`;
-      }
-      if (type === 'overall') {
-        const accuracy = (stats.totalCorrect / stats.locsPlayed * 100).toFixed(2);
-        description += `Locations Played: ${stats.locsPlayed} | Accuracy: ${accuracy}% | Average Time: ${formatTime(stats.totalTime / stats.locsPlayed)}\n\n`;
-      } else {
-        description += `Rank: ${positionString} | Best Streak: ${stats.streak} | Time: ${formattedTime} | Date: ${getDay(stats.date)}\n\n`;
-      }
-    }
-
-    embed.setDescription(description);
-    embed.setFooter({ text: `Page ${page} of ${Math.ceil(Object.keys(userStats).length / maps)}` });
-    embeds.push(embed);
-
-    if (!stats) {
-      stats = await interaction.reply({ embeds, components: [navigation] });
-    } else {
-      await interaction.editReply({ embeds, components: [navigation] });
-    }
-    embeds.pop();
+      item += `**${mapName}**\n`;
+      if (type === 'multi') item += `Participants: ${userList(stats.participants)}\n`;
+      item += `Rank: ${positionString} | Best Streak: ${stats.streak} | Time: ${formattedTime} | Date: ${getDay(stats.date)}\n\n`;
+      return item;
+    });
   }
 
-  await updatePb();
-
-  const collector = stats.createMessageComponentCollector({
-    filter: i => i.user.id === interaction.user.id,
-    time: 300000
-  });
-  
-  collector.on('collect', async (i) => {
-    if (i.customId === 'pb_left') page -= 1;
-    else page += 1;
-    await i.deferUpdate();
-    await updatePb();
-  });
-
-  collector.on('end', async () => {
-    navigation.components[0].setDisabled(true);
-    navigation.components[1].setDisabled(true);
-    await interaction.editReply({ components: [navigation] });
-  });
+  await navEmbed(embeds, items, 10, interaction);
 }
 
 export async function showUserLb(interaction, type, sort) {
-  const places = 10;
   const embed = new EmbedBuilder()
     .setTitle(`Total ${capitalizeFirst(sort)} Leaderboard - ${capitalizeFirst(type)}`)
     .setColor('#f1c40f');
   
-  let page = 1;
-  let leaderboard;
-  const navigation = new ActionRowBuilder()
-    .addComponents(
-      new ButtonBuilder()
-        .setCustomId('userLb_left')
-        .setLabel('<')
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId('userLb_right')
-        .setLabel('>')
-        .setStyle(ButtonStyle.Primary)
-    );
-  
   let userLb = Object.entries(userLb[type]);
   if (sort === 'streak') {
+    if (userLb.length === 0) {
+      return interaction.reply(`No one has played all ${mapNames.length} maps yet in ${type} mode. Be the first!`);
+    }
+
     userLb.sort(([,a], [,b]) => {
       if (a.totalStreak !== b.totalStreak) {
         return b.totalStreak - a.totalStreak;
@@ -301,6 +184,10 @@ export async function showUserLb(interaction, type, sort) {
       return a.mapsPlayed - b.mapsPlayed;
     });
   } else {
+    if (userLb.length === 0) {
+      return interaction.reply(`No one has played in ${type} mode yet. Be the first!`);
+    }
+    
     userLb = userLb.filter(entry => entry[1].mapsPlayed === mapNames.length);
     userLb.sort(([,a], [,b]) => {
       if (a.totalRank !== b.totalRank) {
@@ -310,63 +197,20 @@ export async function showUserLb(interaction, type, sort) {
     });
   }
 
-  if (userLb.length === 0) {
+
+  const prefix = sort === 'rank' ? `You must play all maps in ${type} mode to be on this leaderboard.\n\n` : '';
+
+  const items = userLb.map((entry, index) => {
+    let streakData;
+    const realIndex = places * (page - 1) + index;
+    const medal = realIndex === 0 ? '🥇' : realIndex === 1 ? '🥈' : realIndex === 2 ? '🥉' : `${realIndex + 1}.`;
     if (sort === 'rank') {
-      return interaction.reply(`No one has played all ${mapNames.length} maps yet in ${type} mode. Be the first!`);
-    }
-    return interaction.reply(`No one has played in ${type} mode yet. Be the first!`);
-  }
-
-  async function updateLb() {
-    navigation.components[0].setDisabled(false);
-    navigation.components[1].setDisabled(false);
-    if (page === 1) {
-      navigation.components[0].setDisabled(true);
-    }
-    if (places * page >= userLb.length) {
-      navigation.components[1].setDisabled(true);
-    }
-
-    let description = sort === 'rank' ? `You must play all maps in ${type} mode to be on this leaderboard.\n\n` : '';
-    userLb.slice(places * (page - 1), places * page).forEach((entry, index) => {
-      const realIndex = places * (page - 1) + index;
-      const medal = realIndex === 0 ? '🥇' : realIndex === 1 ? '🥈' : realIndex === 2 ? '🥉' : `${realIndex + 1}.`;
-      let streakData;
-      if (sort === 'rank') {
-        streakData = `Rank Sum: ${entry[1].totalRank} | Streak Sum: ${entry[1].totalStreak}`;
-      } else {
-        streakData = `Streak Sum: ${entry[1].totalStreak} | Maps Played: ${entry[1].mapsPlayed}`;
-      }
-      description += `${medal} **<@${entry[0]}>** - ${streakData}\n`;
-    });
-
-    embed.setDescription(description);
-    embed.setFooter({ text: `Page ${page} of ${Math.ceil(Object.keys(userLb).length / places)}` });
-
-    if (!leaderboard) {
-      leaderboard = await interaction.reply({ embeds: [embed], components: [navigation] });
+      streakData = `Rank Sum: ${entry[1].totalRank} | Streak Sum: ${entry[1].totalStreak}`;
     } else {
-      await interaction.editReply({ embeds: [embed], components: [navigation] });
+      streakData = `Streak Sum: ${entry[1].totalStreak} | Maps Played: ${entry[1].mapsPlayed}`;
     }
-  }
-
-  await updateLb();
-
-  const collector = leaderboard.createMessageComponentCollector({
-    filter: i => i.user.id === interaction.user.id,
-    time: 300000
-  });
-  
-  collector.on('collect', async (i) => {
-    if (i.customId === 'userLb_left') page -= 1;
-    else page += 1;
-    await i.deferUpdate();
-    await updateLb();
+    return `${medal} **<@${entry[0]}>** - ${streakData}\n`;
   });
 
-  collector.on('end', async () => {
-    navigation.components[0].setDisabled(true);
-    navigation.components[1].setDisabled(true);
-    await interaction.editReply({ components: [navigation] });
-  });
+  await navEmbed([embed], items, 10, interaction, prefix);
 }
