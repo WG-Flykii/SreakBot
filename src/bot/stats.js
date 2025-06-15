@@ -60,7 +60,7 @@ export async function showLeaderboard(interaction, inputName, type) {
   if (type === 'combined') {
     const mapLbSolo = Object.values(lbStreaks['solo'][mapName]) || [];
     const mapLbMulti = Object.values(lbStreaks['multi'][mapName]) || [];
-    mapLb = mapLbSolo.concat(mapLbMulti);
+    mapLb = mapLbSolo.concat(mapLbMulti).sort((a, b) => compareStreaks(a, b));
   } else {
     mapLb = Object.values(lbStreaks[type][mapName]);
   }
@@ -68,10 +68,6 @@ export async function showLeaderboard(interaction, inputName, type) {
   if (mapLb.length === 0) {
     await interaction.reply(`No ${type} leaderboard data for map "${mapName}" yet. Be the first to set a record!`);
     return;
-  }
-
-  if (type === 'combined') {
-    mapLb = mapLb.sort((a, b) => compareStreaks(a, b));
   }
 
   const embed = new EmbedBuilder()
