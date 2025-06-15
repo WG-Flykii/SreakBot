@@ -95,14 +95,14 @@ export async function navEmbed(
     if (page === 1) {
       navigation.components[0].setDisabled(true);
     }
-    if (places * page >= mapLb.length) {
+    if (itemsPerPage * page >= items.length) {
       navigation.components[1].setDisabled(true);
     }
 
-    const lastEmbed = base.embeds.length - 1;
-    const description = items.slice(itemsPerPage * (page - 1), places * page).join();
-    base.embeds[lastEmbed].setDescription(prefix + description + suffix);
-    base.embeds[lastEmbed].setFooter({ text: `Page ${page} of ${Math.ceil(items.length / places)}` });
+    const lastEmbed = base.length - 1;
+    const description = items.slice(itemsPerPage * (page - 1), itemsPerPage * page).join('');
+    base[lastEmbed].setDescription(prefix + description + suffix);
+    base[lastEmbed].setFooter({ text: `Page ${page} of ${Math.ceil(items.length / itemsPerPage)}` });
 
     const content = { embeds: base, components: [navigation] };
     if (!message) message = await interaction.reply(content);

@@ -76,10 +76,9 @@ export async function showLeaderboard(interaction, inputName, type) {
     .setTitle(`🏆 ${mapName} - ${capitalizeFirst(type)} leaderboard`)
     .setColor('#f1c40f')
   
-  items = mapLb.map((entry, index) => {
+  const items = mapLb.map((entry, index) => {
     let item = "";
-    const realIndex = places * (page - 1) + index;
-    const medal = realIndex === 0 ? '🥇' : realIndex === 1 ? '🥈' : realIndex === 2 ? '🥉' : `${realIndex + 1}.`;
+    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
     const time = formatTime(entry.averageTime);
     const streakData = `Streak: ${entry.streak} | Average Time: ${time} | Date: ${getDay(entry.date)}`;
     if (type === 'solo') {
@@ -96,7 +95,6 @@ export async function showLeaderboard(interaction, inputName, type) {
 
 export async function showPersonalStats(interaction, user, type) {
   let items;
-  let userStats = pbStreaks[type][user.id] || {};
   let embeds = [
     new EmbedBuilder()
       .setTitle(`📊 ${capitalizeFirst(type)} stats for ${(await client.users.fetch(user.id)).username}`)
@@ -104,6 +102,7 @@ export async function showPersonalStats(interaction, user, type) {
   ];
 
   if (type === 'overall') {
+    let userStats = pbStreaks['solo'][user.id] || {};
     userStats = Object.entries(userStats).filter(stats => stats[1].locsPlayed !== undefined);
     if (userStats.length === 0) {
       return interaction.reply(`${user.username} doesn't have any recorded guesses yet.`);
@@ -115,7 +114,7 @@ export async function showPersonalStats(interaction, user, type) {
     overall += `Locations Played: ${userLbStats.locsPlayed} | Accuracy: ${accuracy}% | Average Time: ${formatTime(userLbStats.totalTime / userLbStats.locsPlayed)}\n`;
     overall += `Rank Sum: ${userLbStats.totalRank} | Streak Sum: ${userLbStats.totalStreak} | Maps Played: ${userLbStats.mapsPlayed}\n\n`;
     embeds[0].setDescription(overall);
-    embed.push(new EmbedBuilder().setColor('#9b59b6'));
+    embeds.push(new EmbedBuilder().setColor('#9b59b6'));
 
     items = userStats.map(([mapName, stats]) => {
       let item = "";
@@ -125,6 +124,7 @@ export async function showPersonalStats(interaction, user, type) {
       return item;
     });
   } else {
+    let userStats = pbStreaks[type][user.id] || {};
     if (userStats.length === 0) {
       return interaction.reply(`${user.username} doesn't have a ${type} streak yet.`);
     }
@@ -174,25 +174,26 @@ export async function showUserLb(interaction, type, sort) {
     .setTitle(`Total ${capitalizeFirst(sort)} Leaderboard - ${capitalizeFirst(type)}`)
     .setColor('#f1c40f');
   
-  let userLb = Object.entries(userLb[type]);
+  let lb = Object.entries(userLb[type]);
   if (sort === 'streak') {
-    if (userLb.length === 0) {
-      return interaction.reply(`No one has played all ${mapNames.length} maps yet in ${type} mode. Be the first!`);
+    if (lb.length === 0) {
+      return interaction.reply(`No one has played in ${type} mode yet. Be the first!`);
     }
 
-    userLb.sort(([,a], [,b]) => {
+    lb.sort(([,a], [,b]) => {
       if (a.totalStreak !== b.totalStreak) {
         return b.totalStreak - a.totalStreak;
       }
       return a.mapsPlayed - b.mapsPlayed;
     });
   } else {
-    if (userLb.length === 0) {
-      return interaction.reply(`No one has played in ${type} mode yet. Be the first!`);
+    lb = lb.filter(entry => entry[1].mapsPlayed === mapNames.length);
+
+    if (lb.length === 0) {
+      return interaction.reply(`No one has played all ${mapNames.length} maps yet in ${type} mode. Be the first!`);
     }
-    
-    userLb = userLb.filter(entry => entry[1].mapsPlayed === mapNames.length);
-    userLb.sort(([,a], [,b]) => {
+
+    lb.sort(([,a], [,b]) => {
       if (a.totalRank !== b.totalRank) {
         return a.totalRank - b.totalRank;
       }
@@ -202,10 +203,9 @@ export async function showUserLb(interaction, type, sort) {
 
   const prefix = sort === 'rank' ? `You must play all maps in ${type} mode to be on this leaderboard.\n\n` : '';
 
-  const items = userLb.map((entry, index) => {
+  const items = lb.map((entry, index) => {
     let streakData;
-    const realIndex = places * (page - 1) + index;
-    const medal = realIndex === 0 ? '🥇' : realIndex === 1 ? '🥈' : realIndex === 2 ? '🥉' : `${realIndex + 1}.`;
+    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
     if (sort === 'rank') {
       streakData = `Rank Sum: ${entry[1].totalRank} | Streak Sum: ${entry[1].totalStreak}`;
     } else {
