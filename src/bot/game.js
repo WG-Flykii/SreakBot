@@ -145,6 +145,7 @@ export async function newLoc(channel, quizId, mapName = null, reload = false) {
 
     if (!quizzes[channel.id]) return;
     quizzes[channel.id].loadTime = Date.now();
+    console.log(quizzes[channel.id].loadTime);
 
     console.log(`New quiz started in channel ${channel.id}. Map: ${quizzes[channel.id].mapName}, Answer: ${currentLoc.country}`);
     console.log(JSON.stringify(currentLoc.address, null, 2));
@@ -176,8 +177,8 @@ export async function handleGuess(message, guess) {
 
   const channelId = message.channel.id;
   const currentLoc = locs[channelId][quizzes[channelId].mapName][0];
-  quizzes[channelId].loadTime = null;
   const quiz = quizzes[channelId];
+  quizzes[channelId].loadTime = null;
   if (!quizzes[channelId]) return;
 
   const userId = message.author.id;
@@ -196,6 +197,7 @@ export async function handleGuess(message, guess) {
   const { lat, lng } = currentLoc.location;
 
   const now = Date.now();
+  console.log(quiz.loadTime);
   const quizTime = now - quiz.loadTime;
 
   if (quizzes[channelId].saveStreaks) {

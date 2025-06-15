@@ -11,6 +11,7 @@ import { sendPrivateMessageOffer } from '../bot/private_quiz.js';
 import { refreshUserLb } from '../bot/stats.js';
 
 import { getCreateQuizId, getQuizId, getAdminId, getPrefix, isQuizChannel, availableMapsEmbed } from '../utils/bot_utils.js';
+import { capitalizeFirst } from '../utils/general_utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -86,7 +87,7 @@ async function handlePlayerCommands(message) {
       
       if (currentLoc && currentLoc.location) {
         stopEmbed.addFields(
-          { name: 'Country', value: currentLoc.country || 'Unknown country'},
+          { name: 'Country', value: capitalizeFirst(currentLoc.country) || 'Unknown country'},
           { name: 'Subdivision', value: currentLoc.subdivision || 'Unknown subdivision' },
           {
             name: "Exact Location",
