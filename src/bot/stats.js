@@ -11,9 +11,9 @@ import { userList, availableMapsEmbed, navEmbed, compareStreaks } from '../utils
 
 import { client } from '../streakbot.js';
 
-export async function saveOverallStats(userId) {
+export function saveOverallStats(userId) {
   for (const type of ['solo', 'multi']) {
-    const streaks = pbStreaks[userId];
+    const streaks = pbStreaks[type][userId];
     if (!streaks) return;
     let totalRank = 0, totalStreak = 0;
     let locsPlayed = 0, totalTime = 0, totalCorrect = 0;
@@ -40,11 +40,12 @@ export async function saveOverallStats(userId) {
     }
     userLb[type][userId] = entry;
   }
+  console.log(userId);
 }
 
-export async function refreshUserLb() {
+export function refreshUserLb() {
   for (const userId of Object.keys(pbStreaks['solo'])) {
-    await saveOverallStats(userId);
+    saveOverallStats(userId);
   }
   saveJsonFile(USERLB_PATH, userLb);
 }
@@ -109,12 +110,14 @@ export async function showPersonalStats(interaction, user, type) {
     }
 
     let overall = "**Overall Stats**\n";
-    const userLbStats = userLb['solo'][user.id]
-    const accuracy = (userLbStats.locsPlayed === 0) ? 0 : (userLbStats.totalCorrect / userLbStats.locsPlayed * 100).toFixed(2);
-    overall += `Locations Played: ${userLbStats.locsPlayed} | Accuracy: ${accuracy}% | Average Time: ${formatTime(userLbStats.totalTime / userLbStats.locsPlayed)}\n`;
-    overall += `Rank Sum: ${userLbStats.totalRank} | Streak Sum: ${userLbStats.totalStreak} | Maps Played: ${userLbStats.mapsPlayed}\n\n`;
-    embeds[0].setDescription(overall);
-    embeds.push(new EmbedBuilder().setColor('#9b59b6'));
+    const userLbStats = userLb['solo'][user.id];
+    if (userLbStats && userLbStats.locsPlayed) {
+      const accuracy = (userLbStats.locsPlayed === 0) ? 0 : (userLbStats.totalCorrect / userLbStats.locsPlayed * 100).toFixed(2);
+      overall += `Locations Played: ${userLbStats.locsPlayed} | Accuracy: ${accuracy}% | Average Time: ${formatTime(userLbStats.totalTime / userLbStats.locsPlayed)}\n`;
+      overall += `Rank Sum: ${userLbStats.totalRank} | Streak Sum: ${userLbStats.totalStreak} | Maps Played: ${userLbStats.mapsPlayed}\n\n`;
+      embeds[0].setDescription(overall);
+      embeds.push(new EmbedBuilder().setColor('#9b59b6'));
+    }
 
     items = userStats.map(([mapName, stats]) => {
       let item = "";

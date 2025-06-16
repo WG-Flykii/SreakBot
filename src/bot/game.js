@@ -316,9 +316,10 @@ export async function handleGuess(message, guess) {
       }
 
       if (
-        !pbStreaks['solo'][userId][mapName]
+        !pbStreaks['solo'][userId][mapName].streak
         || compareStreaks(quiz.solo, pbStreaks['solo'][userId][mapName]) < 0
       ) {
+        console.log('hurr durr', soloEntry);
         pbStreaks['solo'][userId][mapName] = {
           ...pbStreaks['solo'][userId][mapName],
           ...soloEntry
