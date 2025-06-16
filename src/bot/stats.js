@@ -127,7 +127,7 @@ export async function showPersonalStats(interaction, user, type) {
       return item;
     });
   } else {
-    let userStats = Object.entries(pbStreaks[type][user.id] || {});
+    let userStats = Object.entries(pbStreaks[type][user.id] || {}).filter(stats => stats[1].streak !== undefined);
     if (userStats.length === 0) {
       return interaction.reply(`${user.username} doesn't have a ${type} streak yet.`);
     }
