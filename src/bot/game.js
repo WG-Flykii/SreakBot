@@ -178,7 +178,6 @@ export async function handleGuess(message, guess) {
   const channelId = message.channel.id;
   const currentLoc = locs[channelId][quizzes[channelId].mapName][0];
   const quiz = quizzes[channelId];
-  quizzes[channelId].loadTime = null;
   if (!quizzes[channelId]) return;
 
   const userId = message.author.id;
@@ -197,8 +196,8 @@ export async function handleGuess(message, guess) {
   const { lat, lng } = currentLoc.location;
 
   const now = Date.now();
-  console.log(quiz.loadTime);
   const quizTime = now - quiz.loadTime;
+  quizzes[channelId].loadTime = null;
 
   if (quizzes[channelId].saveStreaks) {
     if (!pbStreaks['solo'][userId]) pbStreaks['solo'][userId] = {};

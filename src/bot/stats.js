@@ -102,7 +102,7 @@ export async function showPersonalStats(interaction, user, type) {
   ];
 
   if (type === 'overall') {
-    let userStats = Object.entries(pbStreaks['solo'][user.id]) || [];
+    let userStats = Object.entries(pbStreaks['solo'][user.id] || {});
     userStats = userStats.filter(stats => stats[1].locsPlayed !== undefined);
     if (userStats.length === 0) {
       return interaction.reply(`${user.username} doesn't have any recorded guesses yet.`);
@@ -124,7 +124,7 @@ export async function showPersonalStats(interaction, user, type) {
       return item;
     });
   } else {
-    let userStats = Object.entries(pbStreaks[type][user.id]) || [];
+    let userStats = Object.entries(pbStreaks[type][user.id] || {});
     if (userStats.length === 0) {
       return interaction.reply(`${user.username} doesn't have a ${type} streak yet.`);
     }
