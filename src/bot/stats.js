@@ -51,7 +51,6 @@ export function refreshUserLb() {
 }
 
 export async function showLeaderboard(interaction, inputName, type) {
-  const places = 10;
   const mapName = resolveMapName(inputName);
 
   if (!mapName) {
@@ -103,8 +102,9 @@ export async function showPersonalStats(interaction, user, type) {
   ];
 
   if (type === 'overall') {
-    let userStats = Object.entries(pbStreaks['solo'][user.id] || {});
-    userStats = userStats.filter(stats => stats[1].locsPlayed !== undefined);
+    let userStats = Object.entries(pbStreaks['solo'][user.id] || {})
+      .filter(stats => stats[1].locsPlayed !== undefined);
+    
     if (userStats.length === 0) {
       return interaction.reply(`${user.username} doesn't have any recorded guesses yet.`);
     }
@@ -127,7 +127,9 @@ export async function showPersonalStats(interaction, user, type) {
       return item;
     });
   } else {
-    let userStats = Object.entries(pbStreaks[type][user.id] || {}).filter(stats => stats[1].streak !== undefined);
+    let userStats = Object.entries(pbStreaks[type][user.id] || {})
+      .filter(stats => stats[1].streak !== undefined);
+
     if (userStats.length === 0) {
       return interaction.reply(`${user.username} doesn't have a ${type} streak yet.`);
     }
