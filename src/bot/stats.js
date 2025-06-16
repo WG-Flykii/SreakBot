@@ -102,8 +102,8 @@ export async function showPersonalStats(interaction, user, type) {
   ];
 
   if (type === 'overall') {
-    let userStats = pbStreaks['solo'][user.id] || {};
-    userStats = Object.entries(userStats).filter(stats => stats[1].locsPlayed !== undefined);
+    let userStats = Object.entries(pbStreaks['solo'][user.id]) || [];
+    userStats = userStats.filter(stats => stats[1].locsPlayed !== undefined);
     if (userStats.length === 0) {
       return interaction.reply(`${user.username} doesn't have any recorded guesses yet.`);
     }
@@ -124,12 +124,12 @@ export async function showPersonalStats(interaction, user, type) {
       return item;
     });
   } else {
-    let userStats = pbStreaks[type][user.id] || {};
+    let userStats = Object.entries(pbStreaks[type][user.id]) || [];
     if (userStats.length === 0) {
       return interaction.reply(`${user.username} doesn't have a ${type} streak yet.`);
     }
 
-    for (const [mapName, stats] of Object.entries(userStats)) {
+    for (const [mapName, stats] of userStats) {
       let position = -1;
       if (lbStreaks[type][mapName]) {
         const userPos = findObjectIndex(
@@ -140,10 +140,10 @@ export async function showPersonalStats(interaction, user, type) {
           position = userPos + 1;
         }
       }
-      userStats[mapName]['position'] = position;
+      stats['position'] = position;
     }
 
-    userStats = Object.entries(userStats).sort(([,a], [,b]) => {
+    userStats = userStats.sort(([,a], [,b]) => {
       if (a.position === -1 && b.position === -1) {
         return a.averageTime - b.averageTime;
       }
@@ -159,6 +159,7 @@ export async function showPersonalStats(interaction, user, type) {
       let item = "";
       const formattedTime = formatTime(stats.averageTime);
       const positionString = stats.position === -1 ? 'not ranked' : `#${stats.position}`;
+      delete stats.position
       item += `**${mapName}**\n`;
       if (type === 'multi') item += `Participants: ${userList(stats.participants)}\n`;
       item += `Rank: ${positionString} | Best Streak: ${stats.streak} | Time: ${formattedTime} | Date: ${getDay(stats.date)}\n\n`;
