@@ -114,7 +114,9 @@ export async function showPersonalStats(interaction, user, type) {
     if (userLbStats && userLbStats.locsPlayed) {
       const accuracy = (userLbStats.locsPlayed === 0) ? 0 : (userLbStats.totalCorrect / userLbStats.locsPlayed * 100).toFixed(2);
       overall += `Locations Played: ${userLbStats.locsPlayed} | Accuracy: ${accuracy}% | Average Time: ${formatTime(userLbStats.totalTime / userLbStats.locsPlayed)}\n`;
-      overall += `Rank Sum: ${userLbStats.totalRank} | Streak Sum: ${userLbStats.totalStreak} | Maps Played: ${userLbStats.mapsPlayed}\n\n`;
+      if (userLbStats.totalRank) {
+        overall += `Rank Sum: ${userLbStats.totalRank} | Streak Sum: ${userLbStats.totalStreak} | Maps Played: ${userLbStats.mapsPlayed}\n\n`;
+      }
       embeds[0].setDescription(overall);
       embeds.push(new EmbedBuilder().setColor('#9b59b6'));
     }

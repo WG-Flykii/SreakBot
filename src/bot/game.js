@@ -145,7 +145,6 @@ export async function newLoc(channel, quizId, mapName = null, reload = false) {
 
     if (!quizzes[channel.id]) return;
     quizzes[channel.id].loadTime = Date.now();
-    console.log(quizzes[channel.id].loadTime);
 
     console.log(`New quiz started in channel ${channel.id}. Map: ${quizzes[channel.id].mapName}, Answer: ${currentLoc.country}`);
     console.log(JSON.stringify(currentLoc.address, null, 2));
@@ -251,7 +250,6 @@ export async function handleGuess(message, guess) {
 
       const oldLbEntrySolo = lbStreaks['solo'][mapName][lbKeySolo];
       if (lbKeySolo === -1) {
-        console.log(soloEntry);
         lbStreaks['solo'][mapName][now] = soloEntry;
       } else if (compareStreaks(quiz.solo, oldLbEntrySolo) < 0) {
         delete lbStreaks['solo'][mapName][lbKeySolo];
@@ -319,7 +317,6 @@ export async function handleGuess(message, guess) {
         !pbStreaks['solo'][userId][mapName].streak
         || compareStreaks(quiz.solo, pbStreaks['solo'][userId][mapName]) < 0
       ) {
-        console.log('hurr durr', soloEntry);
         pbStreaks['solo'][userId][mapName] = {
           ...pbStreaks['solo'][userId][mapName],
           ...soloEntry

@@ -19,7 +19,7 @@ const __dirname = dirname(__filename);
 const SERVER_CONFIG_PATH = path.join(__dirname, '../data/user/server_config.json');
 
 export async function handleInteraction(interaction) {
-    console.log('Interaction received:', interaction.type, interaction.customId ?? 'no customId');
+    console.log('Interaction received:', interaction.type, interaction.customId || 'no customId');
 
   if (interaction.isButton() && interaction.customId === 'create_private_thread') {
     console.log('Button clicked:', interaction.customId);
@@ -35,7 +35,7 @@ export async function handleInteraction(interaction) {
       const createQuizId = interaction.options.getChannel('create-private-quiz-channel').id;
       const quizId = interaction.options.getChannel('quiz-channel').id;
       const adminId = interaction.options.getChannel('admin-channel').id;
-      const prefix = interaction.options.getString('prefix') ?? '!';
+      const prefix = interaction.options.getString('prefix') || '!';
 
       serverConfig[guild.id] = { createQuizId, quizId, adminId, prefix };
       saveJsonFile(SERVER_CONFIG_PATH, serverConfig);
@@ -150,6 +150,4 @@ export async function handleInteraction(interaction) {
       break;
     // #endregion
   }
-
-
 }
